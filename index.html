@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Spelling-Bee-Meter (IECS-IEDIS)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#91c200" />
+
+  <!-- Google Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Montserrat:wght@200;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    *,*::before,*::after { box-sizing: border-box; margin:0; padding:0 }
+    html,body { height:100%; font-family:'Montserrat',sans-serif; background:#fafafa }
+
+    :root {
+      --digit-size: 10vw;
+      --spin-time: 5s;      /* default roll time */
+    }
+
+    /* HERO + STATIC BG */
+    .hero {
+      height:100vh; width:100%;
+      background: url('BG-SPELLING-2025.jpg') center/cover no-repeat;
+      position: relative; overflow:hidden;
+      display:flex; align-items:center; justify-content:center;
+    }
+    #introVideo {
+      position:absolute; inset:0;
+      width:100%; height:100%; object-fit:cover;
+      z-index:0; opacity:1;
+      transition: opacity 2s ease;
+      pointer-events:none;
+      background:black;
+    }
+    .reel-wrap {
+      position:relative; z-index:2;
+      display:flex; gap:.2em;
+      cursor:pointer; user-select:none;
+    }
+    .reel {
+      width:var(--digit-size);
+      height: calc(var(--digit-size)*1.3);
+      overflow:hidden; position:relative; border-radius:.05em;
+    }
+    .numbers {
+      display:flex; flex-direction:column; align-items:center;
+      font-family:'Fredoka One',cursive;
+      font-size:var(--digit-size); line-height:1.25; font-weight:700;
+      color:#fff; -webkit-text-stroke:2px #000;
+      transform:translateY(0);
+    }
+    .reel::before, .reel::after {
+      content:''; position:absolute; left:0; width:100%; height:25%;
+      pointer-events:none; z-index:2;
+    }
+    .reel::before {
+      top:0; background: linear-gradient(to bottom, rgba(0,0,0,.45), transparent);
+    }
+    .reel::after {
+      bottom:0; background: linear-gradient(to top, rgba(0,0,0,.45), transparent);
+    }
+    .bee {
+      position:absolute; bottom:4vh; left:50%;
+      transform:translateX(-50%);
+      width:22vw; max-width:180px;
+      z-index:1;
+    }
+
+    /* FOOTER GRADIENT BAR */
+    .gradient-bar {
+      position:absolute; bottom:0; left:0;
+      width:100%; height:20px;
+      /* static: show all stops */
+      background:
+        linear-gradient(
+          to right,
+          #91c200 0%,
+          #c89b2d 16.66%,
+          #f04131 33.33%,
+          #ff902d 50%,
+          #91c200 66.66%,
+          #56b5e8 83.33%,
+          #91c200 100%
+        );
+      background-size:100% 100%;
+      z-index:1;
+    }
+    .gradient-bar.animate {
+      /* animate with larger background */
+      background-size:300% 300%;
+      animation: gradientAnim var(--spin-time) linear infinite;
+    }
+    @keyframes gradientAnim {
+      0% { background-position: 0% 50% }
+      100% { background-position: 100% 50% }
+    }
+
+    /* CONTROLS */
+    #controls {
+      padding:3rem 6vw;
+      max-width:960px; margin:auto;
+      display:flex; flex-direction:column; gap:2rem;
+    }
+    .card {
+      background:#fff; border-radius:6px;
+      box-shadow:0 2px 6px rgba(0,0,0,.05);
+      padding:1.5rem;
+      display:flex; flex-wrap:wrap; gap:1.5rem; justify-content:center;
+    }
+    .field {
+      display:flex; flex-direction:column; gap:.5rem;
+      min-width:180px; flex:1;
+    }
+    .field label { font-weight:600; font-size:.9rem; }
+    .field input {
+      padding:.45em .75em; font-size:1rem;
+      border:1px solid #ccc; border-radius:4px;
+      width:100%;
+    }
+    .btn {
+      margin-top:.5rem; padding:.6em 1.2em;
+      font-size:1rem; border:none; border-radius:4px;
+      background:#007bff; color:#fff; cursor:pointer;
+      transition:background .2s;
+    }
+    .btn:hover { background:#0056b3 }
+    .btn.danger { background:#dc3545 }
+    .btn.danger:hover { background:#b1273a }
+    #stats {
+      font-weight:500; text-align:center; width:100%;
+    }
+    #history {
+      font-size:.85rem; line-height:1.4;
+      word-break:break-word; width:100%;
+    }
+
+    @media(max-width:600px){
+      :root { --digit-size:18vw; }
+      .field { min-width:100%; }
+      .bee { width:32vw; }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <video
+      id="introVideo"
+      src="intro.mp4"
+      autoplay muted playsinline
+    ></video>
+
+    <div id="reels" class="reel-wrap"></div>
+    <img src="css/bee-id.png" class="bee" alt="">
+    <div id="gradient" class="gradient-bar"></div>
+  </section>
+
+  <section id="controls">
+    <div class="card">
+      <div class="field">
+        <label for="maxInput">Maximum value</label>
+        <input id="maxInput" type="number" min="1" />
+        <button id="setMaxBtn" class="btn">Apply max</button>
+      </div>
+      <div class="field">
+        <label for="spinInput">Rolling time (sec)</label>
+        <input id="spinInput" type="number" step=".5" min="1" />
+        <button id="setSpinBtn" class="btn">Apply time</button>
+      </div>
+      <div class="field" style="align-self:flex-end">
+        <button id="drawBtn" class="btn">Draw next</button>
+      </div>
+      <div class="field" style="align-self:flex-end">
+        <button id="resetBtn" class="btn">Reset list</button>
+      </div>
+      <div class="field" style="align-self:flex-end">
+        <button id="clearBtn" class="btn danger" style="display:none">
+          Clear saved
+        </button>
+      </div>
+    </div>
+    <div class="card">
+      <div id="stats">Drawn: 0 | Remaining: 0</div>
+      <div id="history"></div>
+    </div>
+  </section>
+
+  <script>
+    // PWA: register service worker & install prompt
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = Object.assign(document.createElement('button'), {
+        textContent: 'Add Spelling-Bee-Meter to Home Screen',
+        className: 'btn'
+      });
+      document.body.append(btn);
+      btn.addEventListener('click', () => {
+        deferredPrompt.prompt();
+        btn.remove();
+        deferredPrompt = null;
+      });
+    });
+
+    // Slot-roller logic
+    const STATE_KEY = 'bee-slot-state',
+          DUR_KEY   = 'bee-slot-dur',
+          DEF_MAX   = 100,
+          DEF_SEC   = 5,
+          LOOPS     = 4;
+
+    const randInt = n =>
+      crypto.getRandomValues(new Uint32Array(1))[0] % n;
+
+    const shuffle = a => {
+      for (let i = a.length; i; --i) {
+        const j = randInt(i);
+        [a[i-1], a[j]] = [a[j], a[i-1]];
+      }
+      return a;
+    };
+
+    const qs      = new URLSearchParams(location.search);
+    const startMax= Math.max(1, parseInt(qs.get('max')||DEF_MAX,10));
+
+    const fresh   = m => ({
+      max: m,
+      digits: String(m-1).length,
+      data: shuffle([...Array(m).keys()]),
+      idx: -1,
+      drawn: []
+    });
+
+    let st;
+    try {
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY));
+      st = saved?.max === startMax ? saved : fresh(startMax);
+    } catch {
+      st = fresh(startMax);
+    }
+
+    let rollSec = parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC,
+        rolling = false;
+
+    const reels = document.getElementById('reels'),
+          gradient = document.getElementById('gradient'),
+          maxInput = document.getElementById('maxInput'),
+          spinInput= document.getElementById('spinInput'),
+          stats    = document.getElementById('stats'),
+          history  = document.getElementById('history'),
+          drawBtn  = document.getElementById('drawBtn'),
+          resetBtn = document.getElementById('resetBtn'),
+          clearBtn = document.getElementById('clearBtn'),
+          setMaxBtn= document.getElementById('setMaxBtn'),
+          setSpinBtn=document.getElementById('setSpinBtn');
+
+    maxInput.value = st.max;
+    spinInput.value= rollSec;
+    document.documentElement.style.setProperty('--spin-time', rollSec+'s');
+
+    let digitH = 0;
+    function buildReels() {
+      reels.innerHTML = '';
+      for (let i = 0; i < st.digits; i++) {
+        const reel = document.createElement('div');
+        reel.className = 'reel';
+        const col = document.createElement('div');
+        col.className = 'numbers';
+        for (let r = 0; r < LOOPS+3; r++) {
+          for (let d = 0; d < 10; d++) {
+            const s = document.createElement('span');
+            s.textContent = d;
+            col.appendChild(s);
+          }
+        }
+        reel.appendChild(col);
+        reels.appendChild(reel);
+      }
+      requestAnimationFrame(() => {
+        digitH = reels.querySelector('span').getBoundingClientRect().height;
+      });
+    }
+    buildReels();
+
+    const pad = n => String(n).padStart(st.digits,'0');
+
+    function spinTo(val, cb) {
+      rolling = true;
+      gradient.classList.add('animate');
+      document.documentElement.style.setProperty('--spin-time', rollSec+'s');
+
+      const ds = pad(val).split('').map(Number);
+      reels.querySelectorAll('.numbers').forEach((col,i) => {
+        const loops = LOOPS + i;
+        const endY  = -(loops*10 + ds[i]) * digitH;
+        col.style.transition = `transform var(--spin-time) cubic-bezier(.32,.02,.19,1)`;
+        requestAnimationFrame(() => {
+          col.style.transform = `translateY(${endY}px)`;
+        });
+        col.addEventListener('transitionend', function once() {
+          col.removeEventListener('transitionend', once);
+          col.style.transition = 'none';
+          col.style.transform = `translateY(${-ds[i]*digitH}px)`;
+          if (i === st.digits - 1) {
+            gradient.classList.remove('animate');
+            rolling = false;
+            cb?.();
+          }
+        }, { once:true });
+      });
+    }
+
+    function updateStats() {
+      stats.textContent = `Drawn: ${st.drawn.length} | Remaining: ${st.max - st.drawn.length}`;
+      history.textContent = st.drawn.length
+        ? `Numbers drawn: ${st.drawn.join(', ')}`
+        : '';
+    }
+    updateStats();
+
+    function draw() {
+      if (rolling) return;
+      if (++st.idx >= st.data.length) st = fresh(st.max);
+      const n = st.data[st.idx];
+      st.drawn.push(n);
+      localStorage.setItem(STATE_KEY, JSON.stringify(st));
+      spinTo(n, updateStats);
+    }
+
+    function resetList() {
+      if (rolling) return;
+      st = fresh(st.max);
+      localStorage.setItem(STATE_KEY, JSON.stringify(st));
+      buildReels();
+      updateStats();
+    }
+
+    function clearAll() {
+      if (rolling) return;
+      localStorage.removeItem(STATE_KEY);
+      location.reload();
+    }
+
+    function applyMax() {
+      if (rolling) return;
+      const v = Math.max(1, parseInt(maxInput.value,10) || DEF_MAX);
+      location.search = '?max=' + v;
+    }
+
+    function applyDur() {
+      if (rolling) return;
+      rollSec = Math.max(1, parseFloat(spinInput.value) || DEF_SEC);
+      localStorage.setItem(DUR_KEY, rollSec);
+      document.documentElement.style.setProperty('--spin-time', rollSec+'s');
+    }
+
+    drawBtn .addEventListener('click', draw);
+    reels  .addEventListener('click', draw);
+    document.addEventListener('keydown', e => {
+      if (e.key === ' ') { e.preventDefault(); draw(); }
+    });
+    resetBtn .addEventListener('click', resetList);
+    clearBtn .addEventListener('click', clearAll);
+    setMaxBtn.addEventListener('click', applyMax);
+    setSpinBtn.addEventListener('click', applyDur);
+    if (localStorage.getItem(STATE_KEY)) clearBtn.style.display = 'inline-block';
+
+    // Intro video fade & remove
+    const introVid = document.getElementById('introVideo');
+    const totalMs  = 8000;
+    const fadeMs   = 2000;
+    introVid.addEventListener('timeupdate', () => {
+      if (introVid.currentTime >= (totalMs - fadeMs) / 1000) {
+        const rem = (totalMs/1000 - introVid.currentTime) * 1000;
+        introVid.style.transition = `opacity ${rem}ms linear`;
+        introVid.style.opacity = '0';
+      }
+    });
+    introVid.addEventListener('ended', () => introVid.remove());
+  </script>
+</body>
+</html>
