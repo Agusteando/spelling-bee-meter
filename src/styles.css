@@ -6,12 +6,18 @@
 
 :root {
   --spin-time: 5s;
-  --digit-size: clamp(4.5rem, 10vw, 10.5rem);
+  --digit-size: clamp(3.8rem, min(10vw, 16dvh), 9.6rem);
   --ink: #3f2a16;
   --honey: #f8c247;
   --leaf: #91c200;
   --panel: rgba(255, 255, 255, 0.78);
   --panel-border: rgba(255, 255, 255, 0.5);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --stage-pad-x: clamp(0.5rem, 2.2vw, 1.4rem);
+  --stage-pad-top: calc(clamp(0.45rem, 1.6dvh, 1.2rem) + var(--safe-top));
+  --stage-pad-bottom: calc(clamp(2rem, 5.4dvh, 3.4rem) + var(--safe-bottom));
+  --footer-bar-height: clamp(0.45rem, 1.5dvh, 0.95rem);
 }
 
 html,
@@ -22,6 +28,7 @@ body,
 
 body {
   margin: 0;
+  overflow-x: hidden;
   font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ink);
   background:
@@ -35,16 +42,19 @@ input {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .hero-stage {
   position: relative;
-  min-height: 100vh;
+  height: 100svh;
+  min-height: 100svh;
+  max-height: 100dvh;
   overflow: hidden;
   isolation: isolate;
   display: grid;
   place-items: center;
+  padding: var(--stage-pad-top) var(--stage-pad-x) var(--stage-pad-bottom);
 }
 
 .hero-stage::before {
@@ -61,7 +71,7 @@ input {
 .hero-stage::after {
   content: '';
   position: absolute;
-  inset: 4.8rem 9vw 6rem;
+  inset: calc(var(--stage-pad-top) + 3rem) 9vw calc(var(--stage-pad-bottom) + 1.7rem);
   z-index: -1;
   border-radius: 2.4rem;
   background: rgba(255, 255, 220, 0.23);
@@ -98,13 +108,15 @@ input {
   z-index: 3;
   display: grid;
   justify-items: center;
-  gap: 0.8rem;
-  transform: translateY(-0.15rem);
+  gap: clamp(0.38rem, 1.25dvh, 0.8rem);
+  max-width: min(92vw, 42rem);
+  transform: translateY(clamp(-1rem, -1.8dvh, -0.2rem));
 }
 
 .reel-wrap {
   display: flex;
   gap: 0.08em;
+  max-width: min(92vw, 100%);
   padding: 0.2em 0.28em 0.18em;
   cursor: pointer;
   user-select: none;
@@ -195,11 +207,12 @@ input {
 
 .gradient-bar {
   position: absolute;
-  bottom: 0;
+  bottom: var(--safe-bottom);
   left: 0;
-  z-index: 4;
+  z-index: 2;
   width: 100%;
-  height: 20px;
+  height: var(--footer-bar-height);
+  pointer-events: none;
   background: linear-gradient(
     to right,
     #91c200 0%,
@@ -228,7 +241,7 @@ input {
   gap: 1.4rem;
   width: min(100%, 980px);
   margin: 0 auto;
-  padding: 2.4rem 1.2rem 3.4rem;
+  padding: 2.4rem 1.2rem calc(3.4rem + var(--safe-bottom));
 }
 
 .control-card {
@@ -341,16 +354,19 @@ input {
 
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(4.6rem, 19vw, 7.4rem);
+    --digit-size: clamp(3.15rem, min(18vw, 14dvh), 6.8rem);
+    --stage-pad-x: clamp(0.4rem, 3.5vw, 1rem);
+    --stage-pad-top: calc(clamp(0.35rem, 1.2dvh, 0.9rem) + var(--safe-top));
+    --stage-pad-bottom: calc(clamp(2.35rem, 6.8dvh, 4rem) + var(--safe-bottom));
   }
 
   .hero-stage::after {
-    inset: 3.8rem 1rem 5.2rem;
+    inset: calc(var(--stage-pad-top) + 2.1rem) 0.65rem calc(var(--stage-pad-bottom) + 1.1rem);
     border-radius: 1.6rem;
   }
 
   .slot-overlay {
-    transform: translateY(0.5rem);
+    transform: translateY(clamp(-0.7rem, -1.2dvh, 0rem));
   }
 
   .primary-card {
@@ -359,6 +375,23 @@ input {
 
   .action-stack .btn {
     flex: 1 1 9rem;
+  }
+}
+
+@media (max-height: 620px) {
+  :root {
+    --digit-size: clamp(2.75rem, min(12vw, 13dvh), 5.8rem);
+    --stage-pad-top: calc(0.35rem + var(--safe-top));
+    --stage-pad-bottom: calc(1.75rem + var(--safe-bottom));
+  }
+
+  .draw-hint {
+    padding: 0.34rem 0.68rem;
+  }
+
+  .slot-overlay {
+    gap: 0.3rem;
+    transform: translateY(-0.35rem);
   }
 }
 

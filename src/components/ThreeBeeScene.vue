@@ -9,6 +9,7 @@ import {
   BufferGeometry,
   DoubleSide,
   Float32BufferAttribute,
+  Group,
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
@@ -54,6 +55,7 @@ let camera;
 let frameId;
 let resizeObserver;
 let rareBee;
+let worldRoot;
 let lastUserActivity = 0;
 let nextRareBeeAt = 0;
 
@@ -62,6 +64,10 @@ const cleanup = [];
 const textureLoader = new TextureLoader();
 const pointerTarget = new Vector2(0, 0);
 const cameraDrift = new Vector2(0, 0);
+
+function addToWorld(object) {
+  (worldRoot || scene).add(object);
+}
 
 function makeTexture(url) {
   const texture = textureLoader.load(url);
@@ -99,7 +105,7 @@ function createPlane({
   mesh.position.set(x, y, z);
   mesh.renderOrder = renderOrder;
   mesh.visible = visible;
-  scene.add(mesh);
+  addToWorld(mesh);
   cleanup.push(() => {
     geometry.dispose();
     material.dispose();
@@ -136,7 +142,7 @@ function createBillboard({
   sprite.scale.set(width, height, 1);
   sprite.renderOrder = renderOrder;
   sprite.visible = visible;
-  scene.add(sprite);
+  addToWorld(sprite);
   cleanup.push(() => {
     material.dispose();
     texture.dispose();
@@ -166,7 +172,7 @@ function createColorPlane({
   const mesh = new Mesh(geometry, material);
   mesh.position.set(x, y, z);
   mesh.renderOrder = renderOrder;
-  scene.add(mesh);
+  addToWorld(mesh);
   cleanup.push(() => {
     geometry.dispose();
     material.dispose();
@@ -220,7 +226,7 @@ function addParticleField() {
   const points = new Points(geometry, material);
   points.position.z = 2.6;
   points.renderOrder = 12;
-  scene.add(points);
+  addToWorld(points);
   animated.push({
     mesh: points,
     particleField: true,
@@ -635,10 +641,23 @@ function animate(time = 0) {
 function resize() {
   if (!mount.value || !renderer || !camera) return;
   const { width, height } = mount.value.getBoundingClientRect();
-  renderer.setSize(width, height, false);
-  camera.aspect = width / Math.max(height, 1);
-  camera.position.z = width < 760 ? 12.8 : 10.6;
-  camera.fov = width < 760 ? 47 : 39;
+  const safeHeight = Math.max(height, 1);
+  const aspect = width / safeHeight;
+  const shortViewport = Math.max(0, Math.min(1, (680 - safeHeight) / 280));
+  const narrowViewport = Math.max(0, Math.min(1, (0.9 - aspect) / 0.38));
+
+  renderer.setSize(width, safeHeight, false);
+  camera.aspect = aspect;
+  camera.position.z = 11.15 + shortViewport * 1.1 + narrowViewport * 1.55;
+  camera.fov = 43.5 + shortViewport * 4.5 + narrowViewport * 4;
+
+  if (worldRoot) {
+    const scale = 1 - shortViewport * 0.08 - narrowViewport * 0.06;
+    worldRoot.scale.setScalar(scale);
+    worldRoot.position.y = 0.14 + shortViewport * 0.42;
+    worldRoot.position.x = 0;
+  }
+
   camera.updateProjectionMatrix();
 }
 
@@ -651,8 +670,10 @@ function trackPointer(event) {
 
 onMounted(() => {
   scene = new Scene();
-  camera = new PerspectiveCamera(39, 1, 0.1, 100);
-  camera.position.set(0, 0.15, 10.6);
+  worldRoot = new Group();
+  scene.add(worldRoot);
+  camera = new PerspectiveCamera(43.5, 1, 0.1, 100);
+  camera.position.set(0, 0.15, 11.15);
 
   renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
   renderer.setClearColor(0x000000, 0);
