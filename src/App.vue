@@ -65,12 +65,13 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
+const BUILD_STAMP = '20260609-231027';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const REEL_LOOPS = 4;
-const EXTRA_REEL_SETS = 3;
+const REEL_LOOPS = 5;
+const REEL_STRIP_SETS = 96;
 const INTRO_TOTAL_MS = 8000;
 const INTRO_FADE_MS = 2000;
 
@@ -120,108 +121,138 @@ function loadState() {
 }
 
 const state = ref(loadState());
-let displayedValue = state.value.drawn.at(-1) ?? 0;
 const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
-let digitHeight = 0;
-let resizeFrame = 0;
-
-const reelDigits = computed(() => Array.from({ length: (REEL_LOOPS + state.value.digits + EXTRA_REEL_SETS) * 10 }, (_, index) => index % 10));
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
+const reelDigits = computed(() => Array.from({ length: REEL_STRIP_SETS * 10 }, (_, index) => index % 10));
+
+let displayedValue = state.value.drawn.at(-1) ?? 0;
+let digitHeight = 0;
+let resizeFrame = 0;
+let currentRows = [];
+let currentDigits = [];
+let activeAnimations = [];
+
+function pad(value) {
+  return String(value).padStart(state.value.digits, '0');
+}
 
 function saveState() {
   localStorage.setItem(STATE_KEY, JSON.stringify(state.value));
   hasSavedState.value = true;
 }
 
-function measureDigit() {
-  const span = reelsRoot.value?.querySelector('span');
-  digitHeight = span?.getBoundingClientRect().height || 0;
-}
-
-function lastDisplayedValue() {
-  return displayedValue;
-}
-
-function setColumnToDigit(column, digit) {
-  column.dataset.digit = String(digit);
-  column.style.transition = 'none';
-  column.style.transitionDelay = '0ms';
-  column.style.transform = `translateY(${-digit * digitHeight}px)`;
-}
-
-function resetReelColumns(value = lastDisplayedValue()) {
-  const digits = pad(value).split('').map(Number);
-  reelsRoot.value?.querySelectorAll('.numbers').forEach((column, index) => {
-    const digit = digits[index] ?? 0;
-    setColumnToDigit(column, digit);
-  });
-}
-
 function notifySceneActivity() {
   window.dispatchEvent(new CustomEvent('bee-meter-activity'));
-}
-
-function pad(value) {
-  return String(value).padStart(state.value.digits, '0');
 }
 
 function setSpinTimeCss() {
   document.documentElement.style.setProperty('--spin-time', `${spinInput.value}s`);
 }
 
-async function spinTo(value) {
-  const startValue = displayedValue;
-  rolling.value = true;
-  setSpinTimeCss();
-  await nextTick();
-  measureDigit();
+function measureDigit() {
+  const span = reelsRoot.value?.querySelector('span');
+  const nextHeight = span?.getBoundingClientRect().height || 0;
+  if (nextHeight > 0) digitHeight = nextHeight;
+  return digitHeight;
+}
 
-  const columns = [...(reelsRoot.value?.querySelectorAll('.numbers') || [])];
+function getColumns() {
+  return [...(reelsRoot.value?.querySelectorAll('.numbers') || [])];
+}
+
+function transformForRow(row) {
+  return `translate3d(0, ${-row * digitHeight}px, 0)`;
+}
+
+function setColumnRow(column, row) {
+  column.getAnimations?.().forEach((animation) => animation.cancel());
+  column.style.transition = 'none';
+  column.style.transform = transformForRow(row);
+}
+
+function normalizeRowsToValue(value = displayedValue) {
   const digits = pad(value).split('').map(Number);
+  const columns = getColumns();
+  currentRows = digits.map((digit) => digit);
+  currentDigits = digits;
+  columns.forEach((column, index) => {
+    setColumnRow(column, currentRows[index] ?? 0);
+  });
+}
 
-  if (!columns.length || !digitHeight) {
-    rolling.value = false;
+async function setupReels(value = displayedValue) {
+  await nextTick();
+  await document.fonts?.ready?.catch?.(() => null);
+  measureDigit();
+  normalizeRowsToValue(value);
+}
+
+function normalizeIfNeeded(columns) {
+  const threshold = REEL_STRIP_SETS * 10 - 90;
+  if (!currentRows.some((row) => row > threshold)) return;
+  currentRows = currentDigits.map((digit) => digit);
+  columns.forEach((column, index) => setColumnRow(column, currentRows[index] ?? 0));
+}
+
+async function spinTo(value) {
+  const columns = getColumns();
+  if (!columns.length) return;
+  measureDigit();
+  if (!digitHeight) {
+    displayedValue = value;
+    normalizeRowsToValue(value);
     return;
   }
 
+  activeAnimations.forEach((animation) => animation.cancel());
+  activeAnimations = [];
+  rolling.value = true;
+  setSpinTimeCss();
+  await nextTick();
+
+  const targetDigits = pad(value).split('').map(Number);
   const durationMs = Math.max(650, spinInput.value * 1000);
 
-  await Promise.all(columns.map((column, index) => new Promise(resolve => {
-    const targetDigit = digits[index] ?? 0;
-    const startDigit = Number(pad(startValue)[index] ?? 0);
-    const loops = REEL_LOOPS + index;
-    const endOffset = loops * 10 + targetDigit;
+  await Promise.all(columns.map((column, index) => {
+    const startRow = currentRows[index] ?? Number(pad(displayedValue)[index] ?? 0);
+    const startDigit = ((startRow % 10) + 10) % 10;
+    const targetDigit = targetDigits[index] ?? 0;
+    const delta = (targetDigit - startDigit + 10) % 10;
+    const loops = REEL_LOOPS + index + Math.floor(index / 2);
+    const endRow = startRow + loops * 10 + delta;
+    const delay = index * 80;
+
+    currentRows[index] = endRow;
+    currentDigits[index] = targetDigit;
 
     column.style.transition = 'none';
-    column.style.transitionDelay = '0ms';
-    column.style.transform = `translateY(${-startDigit * digitHeight}px)`;
-    column.getBoundingClientRect();
+    column.style.transform = transformForRow(startRow);
 
-    let fallbackTimer;
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      window.clearTimeout(fallbackTimer);
-      column.removeEventListener('transitionend', finish);
-      setColumnToDigit(column, targetDigit);
-      resolve();
-    };
+    const animation = column.animate(
+      [
+        { transform: transformForRow(startRow), filter: 'brightness(1)' },
+        { transform: transformForRow(endRow - 1.16), filter: 'brightness(1.16)', offset: 0.78 },
+        { transform: transformForRow(endRow + 0.18), filter: 'brightness(1.04)', offset: 0.92 },
+        { transform: transformForRow(endRow), filter: 'brightness(1)' }
+      ],
+      {
+        duration: durationMs + delay,
+        easing: 'cubic-bezier(.19,.92,.21,1)',
+        fill: 'forwards'
+      }
+    );
 
-    column.addEventListener('transitionend', finish, { once: true });
-    fallbackTimer = window.setTimeout(finish, durationMs + 520);
+    activeAnimations.push(animation);
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        column.style.transition = `transform ${durationMs}ms cubic-bezier(.32,.02,.19,1)`;
-        column.style.transform = `translateY(${-endOffset * digitHeight}px)`;
-      });
+    return animation.finished.catch(() => null).then(() => {
+      column.style.transform = transformForRow(endRow);
     });
-  })));
+  }));
 
   displayedValue = value;
+  normalizeIfNeeded(columns);
   rolling.value = false;
 }
 
@@ -231,10 +262,8 @@ async function draw() {
 
   if (state.value.idx + 1 >= state.value.data.length) {
     state.value = fresh(state.value.max);
-    await nextTick();
-    measureDigit();
     displayedValue = 0;
-    resetReelColumns(0);
+    await setupReels(0);
   }
 
   state.value.idx += 1;
@@ -249,10 +278,8 @@ async function resetList() {
   notifySceneActivity();
   state.value = fresh(state.value.max);
   saveState();
-  await nextTick();
-  measureDigit();
   displayedValue = 0;
-  resetReelColumns(0);
+  await setupReels(0);
 }
 
 function clearAll() {
@@ -300,7 +327,7 @@ function handleMeterResize() {
     resizeFrame = 0;
     if (rolling.value) return;
     measureDigit();
-    resetReelColumns();
+    normalizeRowsToValue(displayedValue);
   });
 }
 
@@ -315,22 +342,29 @@ function handleBeforeInstall(event) {
   installPrompt.value = event;
 }
 
-onMounted(() => {
+async function refreshServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const keys = await caches?.keys?.();
+    await Promise.all((keys || []).filter((key) => key.startsWith('spelling-bee')).map((key) => caches.delete(key)));
+    const registration = await navigator.serviceWorker.register(`/service-worker.js?v=${BUILD_STAMP}`);
+    await registration.update();
+  } catch {
+    // Keep runtime behavior independent from PWA cache maintenance.
+  }
+}
+
+onMounted(async () => {
   setSpinTimeCss();
-  nextTick(() => {
-    measureDigit();
-    resetReelColumns();
-  });
+  await setupReels(displayedValue);
   window.addEventListener('keydown', handleKeydown);
   window.addEventListener('resize', handleMeterResize);
   window.addEventListener('beforeinstallprompt', handleBeforeInstall);
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => null);
-  }
+  refreshServiceWorker();
 });
 
 onBeforeUnmount(() => {
+  activeAnimations.forEach((animation) => animation.cancel());
   window.removeEventListener('keydown', handleKeydown);
   window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);

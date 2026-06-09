@@ -1,17 +1,12 @@
 # Spelling Bee 3D Meter
 
-Vue + Three.js frontend for the animated Spelling Bee 2026 draw meter.
+Vue + Three.js frontend for the Spelling Bee draw meter.
 
-## Run
+## Scripts
 
-```bash
-npm install
-npm run dev
-```
+- `npm install`
+- `npm run dev`
+- `npm run build`
+- `npm run preview`
 
-## Build
-
-```bash
-npm run build
-npm run preview
-```
+The scene uses cache-versioned assets and a network-first service worker to prevent stale visual iterations.

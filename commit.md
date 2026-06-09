@@ -1,1 +1,1 @@
-Reimagina el escenario Spelling Bee como una experiencia 3D procedural con odómetro de carrete estable
+Reimagina la escena con mezcla 3D y sprites, corrige caché de assets, anclaje de plantas, pasto y odómetro estable
