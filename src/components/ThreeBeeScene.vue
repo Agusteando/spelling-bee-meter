@@ -47,8 +47,11 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260609-232008';
+const BUILD_STAMP = '20260609-232937';
 const SPLAT_URL = `/splats/ceramic_500k.spz?v=${BUILD_STAMP}`;
+// Parsed from the uploaded legacy SPZ position stream: this is the densest/highest-detail cluster.
+const DETAIL_FOCUS = new Vector3(-2.1509, 0.7566, 0.8363);
+const DETAIL_ROBUST_SPAN = 102.1;
 
 const mount = ref(null);
 const loading = ref(true);
@@ -313,22 +316,20 @@ function fitSplatToViewport() {
     loadedBox = null;
   }
 
-  const box = loadedBox && Number.isFinite(loadedBox.min.x) ? loadedBox : new Box3(new Vector3(-1, -1, -1), new Vector3(1, 1, 1));
-  const size = new Vector3();
-  const center = new Vector3();
-  box.getSize(size);
-  box.getCenter(center);
-
-  const largest = Math.max(size.x, size.y, size.z, 0.001);
   const aspect = viewWidth / Math.max(viewHeight, 1);
-  const desired = aspect < 0.72 ? 2.7 : aspect < 1.05 ? 3.3 : 4.25;
-  const scale = desired / largest;
+  const desired = aspect < 0.72 ? 5.15 : aspect < 1.05 ? 5.9 : 6.85;
+  const scale = desired / DETAIL_ROBUST_SPAN;
+  const transformedFocus = DETAIL_FOCUS.clone().applyQuaternion(splatMesh.quaternion);
 
   splatRoot.scale.setScalar(scale);
-  splatRoot.position.set(-center.x * scale, -center.y * scale - (aspect < 0.72 ? 0.24 : 0.06), -center.z * scale);
+  splatRoot.position.set(
+    -transformedFocus.x * scale,
+    -transformedFocus.y * scale - (aspect < 0.72 ? 0.06 : 0.02),
+    -transformedFocus.z * scale
+  );
 
-  cameraTarget.set(0, aspect < 0.72 ? 0.08 : 0.02, 0);
-  cameraDistance = aspect < 0.72 ? 5.75 : aspect < 1.05 ? 5.35 : 5.05;
+  cameraTarget.set(0, aspect < 0.72 ? 0.1 : 0.04, 0);
+  cameraDistance = aspect < 0.72 ? 3.85 : aspect < 1.05 ? 3.55 : 3.25;
   updateCamera(0, true);
 }
 
@@ -351,7 +352,7 @@ function updateResponsive() {
 function updateCamera(delta, instant = false) {
   const aspect = viewWidth / Math.max(viewHeight, 1);
   const targetOrbit = props.orbitEnabled ? 1 : 0;
-  const speed = props.orbitEnabled ? 0.014 : 0.002;
+  const speed = props.orbitEnabled ? 0.009 : 0.0012;
   orbitAngle += delta * speed;
 
   pointerLerp.lerp(pointerTarget, instant ? 1 : 0.025);

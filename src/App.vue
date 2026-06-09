@@ -72,13 +72,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260609-232008';
+const BUILD_STAMP = '20260609-232937';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const REEL_LOOPS = 5;
-const REEL_STRIP_SETS = 96;
+const REEL_LOOPS = 4;
 const INTRO_TOTAL_MS = 8000;
 const INTRO_FADE_MS = 2000;
 
@@ -133,14 +132,13 @@ const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
-const reelDigits = computed(() => Array.from({ length: REEL_STRIP_SETS * 10 }, (_, index) => index % 10));
+const reelDigits = computed(() => Array.from({ length: (REEL_LOOPS + state.value.digits + 3) * 10 }, (_, index) => index % 10));
 
 let displayedValue = state.value.drawn.at(-1) ?? 0;
 let digitHeight = 0;
 let resizeFrame = 0;
-let currentRows = [];
 let currentDigits = [];
-let activeAnimations = [];
+let activeTimers = [];
 
 function pad(value) {
   return String(value).padStart(state.value.digits, '0');
@@ -171,11 +169,15 @@ function getColumns() {
 }
 
 function transformForRow(row) {
-  return `translate3d(0, ${-row * digitHeight}px, 0)`;
+  return `translateY(${-row * digitHeight}px)`;
+}
+
+function cancelReelTimers() {
+  activeTimers.forEach((timer) => window.clearTimeout(timer));
+  activeTimers = [];
 }
 
 function setColumnRow(column, row) {
-  column.getAnimations?.().forEach((animation) => animation.cancel());
   column.style.transition = 'none';
   column.style.transform = transformForRow(row);
 }
@@ -183,10 +185,9 @@ function setColumnRow(column, row) {
 function normalizeRowsToValue(value = displayedValue) {
   const digits = pad(value).split('').map(Number);
   const columns = getColumns();
-  currentRows = digits.map((digit) => digit);
   currentDigits = digits;
   columns.forEach((column, index) => {
-    setColumnRow(column, currentRows[index] ?? 0);
+    setColumnRow(column, currentDigits[index] ?? 0);
   });
 }
 
@@ -197,11 +198,22 @@ async function setupReels(value = displayedValue) {
   normalizeRowsToValue(value);
 }
 
-function normalizeIfNeeded(columns) {
-  const threshold = REEL_STRIP_SETS * 10 - 90;
-  if (!currentRows.some((row) => row > threshold)) return;
-  currentRows = currentDigits.map((digit) => digit);
-  columns.forEach((column, index) => setColumnRow(column, currentRows[index] ?? 0));
+function waitForTransformEnd(column, timeoutMs) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      column.removeEventListener('transitionend', onEnd);
+      resolve();
+    };
+    const onEnd = (event) => {
+      if (event.propertyName === 'transform') finish();
+    };
+    column.addEventListener('transitionend', onEnd);
+    const timer = window.setTimeout(finish, timeoutMs + 120);
+    activeTimers.push(timer);
+  });
 }
 
 async function spinTo(value) {
@@ -214,53 +226,37 @@ async function spinTo(value) {
     return;
   }
 
-  activeAnimations.forEach((animation) => animation.cancel());
-  activeAnimations = [];
+  cancelReelTimers();
   rolling.value = true;
   setSpinTimeCss();
   await nextTick();
 
+  const startDigits = currentDigits.length === state.value.digits ? currentDigits : pad(displayedValue).split('').map(Number);
   const targetDigits = pad(value).split('').map(Number);
-  const durationMs = Math.max(650, spinInput.value * 1000);
+  const durationMs = Math.max(700, spinInput.value * 1000);
 
-  await Promise.all(columns.map((column, index) => {
-    const startRow = currentRows[index] ?? Number(pad(displayedValue)[index] ?? 0);
-    const startDigit = ((startRow % 10) + 10) % 10;
+  await Promise.all(columns.map(async (column, index) => {
+    const startDigit = startDigits[index] ?? 0;
     const targetDigit = targetDigits[index] ?? 0;
-    const delta = (targetDigit - startDigit + 10) % 10;
-    const loops = REEL_LOOPS + index + Math.floor(index / 2);
-    const endRow = startRow + loops * 10 + delta;
-    const delay = index * 80;
+    const loops = REEL_LOOPS + index;
+    const endRow = loops * 10 + targetDigit;
+    const localDuration = durationMs + index * 120;
 
-    currentRows[index] = endRow;
-    currentDigits[index] = targetDigit;
+    setColumnRow(column, startDigit);
+    // Flush the normalized starting transform before applying the animated transform.
+    column.offsetHeight;
+    column.style.transition = `transform ${localDuration}ms cubic-bezier(.32,.02,.19,1)`;
+    column.style.transform = transformForRow(endRow);
 
-    column.style.transition = 'none';
-    column.style.transform = transformForRow(startRow);
+    await waitForTransformEnd(column, localDuration);
 
-    const animation = column.animate(
-      [
-        { transform: transformForRow(startRow), filter: 'brightness(1)' },
-        { transform: transformForRow(endRow - 1.16), filter: 'brightness(1.16)', offset: 0.78 },
-        { transform: transformForRow(endRow + 0.18), filter: 'brightness(1.04)', offset: 0.92 },
-        { transform: transformForRow(endRow), filter: 'brightness(1)' }
-      ],
-      {
-        duration: durationMs + delay,
-        easing: 'cubic-bezier(.19,.92,.21,1)',
-        fill: 'forwards'
-      }
-    );
-
-    activeAnimations.push(animation);
-
-    return animation.finished.catch(() => null).then(() => {
-      column.style.transform = transformForRow(endRow);
-    });
+    // Same visible digit, lower row. The reset is hidden because the strip repeats 0-9.
+    setColumnRow(column, targetDigit);
   }));
 
+  cancelReelTimers();
   displayedValue = value;
-  normalizeIfNeeded(columns);
+  currentDigits = targetDigits;
   rolling.value = false;
 }
 
@@ -372,7 +368,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  activeAnimations.forEach((animation) => animation.cancel());
+  cancelReelTimers();
   window.removeEventListener('keydown', handleKeydown);
   window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
