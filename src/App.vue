@@ -69,7 +69,9 @@ const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const LOOPS = 4;
+const REEL_SETS = 18;
+const CANONICAL_SET = 6;
+const MIN_SPIN_SETS = 7;
 const INTRO_TOTAL_MS = 8000;
 const INTRO_FADE_MS = 2000;
 
@@ -122,8 +124,9 @@ const state = ref(loadState());
 const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 let digitHeight = 0;
+let reelOffsets = [];
 
-const reelDigits = computed(() => Array.from({ length: (LOOPS + 3) * 10 }, (_, index) => index % 10));
+const reelDigits = computed(() => Array.from({ length: REEL_SETS * 10 }, (_, index) => index % 10));
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
 
@@ -141,12 +144,26 @@ function lastDisplayedValue() {
   return state.value.drawn.at(-1) ?? 0;
 }
 
+function setColumnOffset(column, index, offset, animated = false) {
+  column.dataset.offset = String(offset);
+  reelOffsets[index] = offset;
+  column.style.transition = animated
+    ? column.style.transition
+    : 'none';
+  column.style.transform = `translate3d(0, ${-offset * digitHeight}px, 0)`;
+}
+
+function canonicalOffsetForDigit(digit) {
+  return CANONICAL_SET * 10 + digit;
+}
+
 function resetReelColumns(value = lastDisplayedValue()) {
   const digits = pad(value).split('').map(Number);
   reelsRoot.value?.querySelectorAll('.numbers').forEach((column, index) => {
     const digit = digits[index] ?? 0;
     column.style.transition = 'none';
-    column.style.transform = `translateY(${-digit * digitHeight}px)`;
+    column.style.transitionDelay = '0ms';
+    setColumnOffset(column, index, canonicalOffsetForDigit(digit));
   });
 }
 
@@ -177,23 +194,35 @@ async function spinTo(value) {
   }
 
   await Promise.all(columns.map((column, index) => new Promise(resolve => {
-    const loops = LOOPS + index;
-    const digit = digits[index] ?? 0;
-    const endY = -(loops * 10 + digit) * digitHeight;
+    const targetDigit = digits[index] ?? 0;
+    const currentOffset = Number(column.dataset.offset || reelOffsets[index] || canonicalOffsetForDigit(0));
+    const currentDigit = ((currentOffset % 10) + 10) % 10;
+    const forwardDelta = (targetDigit - currentDigit + 10) % 10;
+    const travel = (MIN_SPIN_SETS + index) * 10 + forwardDelta;
+    const targetOffset = currentOffset + travel;
+    const canonicalOffset = canonicalOffsetForDigit(targetDigit);
+    const durationMs = Math.max(650, spinInput.value * 1000 + index * 160);
 
-    column.style.transition = 'transform var(--spin-time) cubic-bezier(.32,.02,.19,1)';
+    column.style.transition = 'none';
+    column.style.transitionDelay = '0ms';
+    column.style.transform = `translate3d(0, ${-currentOffset * digitHeight}px, 0)`;
     column.getBoundingClientRect();
 
+    let fallbackTimer;
     const finish = () => {
+      window.clearTimeout(fallbackTimer);
       column.removeEventListener('transitionend', finish);
       column.style.transition = 'none';
-      column.style.transform = `translateY(${-digit * digitHeight}px)`;
+      column.style.transitionDelay = '0ms';
+      setColumnOffset(column, index, canonicalOffset);
       resolve();
     };
 
     column.addEventListener('transitionend', finish, { once: true });
+    fallbackTimer = window.setTimeout(finish, durationMs + 420);
     requestAnimationFrame(() => {
-      column.style.transform = `translateY(${endY}px)`;
+      column.style.transition = `transform ${durationMs}ms cubic-bezier(.13,.78,.15,1)`;
+      setColumnOffset(column, index, targetOffset, true);
     });
   })));
 
@@ -267,6 +296,12 @@ function handleKeydown(event) {
   }
 }
 
+function handleMeterResize() {
+  if (rolling.value) return;
+  measureDigit();
+  resetReelColumns();
+}
+
 function installApp() {
   if (!installPrompt.value) return;
   installPrompt.value.prompt();
@@ -285,6 +320,7 @@ onMounted(() => {
     resetReelColumns();
   });
   window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('resize', handleMeterResize);
   window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
   if ('serviceWorker' in navigator) {
@@ -294,6 +330,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
 });
 </script>

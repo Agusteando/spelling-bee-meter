@@ -6,7 +6,7 @@
 
 :root {
   --spin-time: 5s;
-  --digit-size: clamp(3.8rem, min(10vw, 16dvh), 9.6rem);
+  --digit-size: clamp(3.45rem, min(9.2vw, 14.5dvh), 8.7rem);
   --ink: #3f2a16;
   --honey: #f8c247;
   --leaf: #91c200;
@@ -16,8 +16,8 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --stage-pad-x: clamp(0.5rem, 2.2vw, 1.4rem);
   --stage-pad-top: calc(clamp(0.45rem, 1.6dvh, 1.2rem) + var(--safe-top));
-  --stage-pad-bottom: calc(clamp(2rem, 5.4dvh, 3.4rem) + var(--safe-bottom));
-  --footer-bar-height: clamp(0.45rem, 1.5dvh, 0.95rem);
+  --stage-pad-bottom: calc(clamp(2.8rem, 7.2dvh, 4.6rem) + var(--safe-bottom));
+  --footer-bar-height: clamp(0.28rem, 0.9dvh, 0.62rem);
 }
 
 html,
@@ -71,11 +71,11 @@ input {
 .hero-stage::after {
   content: '';
   position: absolute;
-  inset: calc(var(--stage-pad-top) + 3rem) 9vw calc(var(--stage-pad-bottom) + 1.7rem);
+  inset: calc(var(--stage-pad-top) + 2.6rem) 8.5vw calc(var(--stage-pad-bottom) + 1.05rem);
   z-index: -1;
   border-radius: 2.4rem;
-  background: rgba(255, 255, 220, 0.23);
-  box-shadow: 0 3rem 7rem rgba(84, 54, 13, 0.16);
+  background: rgba(255, 255, 220, 0.18);
+  box-shadow: 0 2.4rem 6rem rgba(84, 54, 13, 0.13);
   pointer-events: none;
 }
 
@@ -108,9 +108,9 @@ input {
   z-index: 3;
   display: grid;
   justify-items: center;
-  gap: clamp(0.38rem, 1.25dvh, 0.8rem);
+  gap: clamp(0.32rem, 1.05dvh, 0.68rem);
   max-width: min(92vw, 42rem);
-  transform: translateY(clamp(-1rem, -1.8dvh, -0.2rem));
+  transform: translateY(clamp(-0.55rem, -1.1dvh, -0.08rem));
 }
 
 .reel-wrap {
@@ -120,9 +120,10 @@ input {
   padding: 0.2em 0.28em 0.18em;
   cursor: pointer;
   user-select: none;
-  border-radius: 1.1rem;
+  border-radius: 1.05rem;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.08)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1)),
+    radial-gradient(circle at 50% 14%, rgba(255, 238, 162, 0.34), transparent 48%),
     rgba(80, 42, 12, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.3);
   box-shadow:
@@ -147,9 +148,12 @@ input {
   width: var(--digit-size);
   height: calc(var(--digit-size) * 1.27);
   overflow: hidden;
-  border-radius: 0.28em;
+  border-radius: 0.26em;
+  perspective: 900px;
+  contain: paint;
   background:
-    linear-gradient(180deg, rgba(255, 244, 202, 0.2), rgba(93, 55, 24, 0.24)),
+    linear-gradient(180deg, rgba(255, 252, 224, 0.28), rgba(93, 55, 24, 0.24)),
+    radial-gradient(circle at 50% 50%, rgba(255, 248, 207, 0.34), rgba(102, 70, 32, 0.12)),
     rgba(255, 255, 255, 0.18);
 }
 
@@ -158,7 +162,7 @@ input {
   content: '';
   position: absolute;
   left: 0;
-  z-index: 2;
+  z-index: 1;
   width: 100%;
   height: 28%;
   pointer-events: none;
@@ -166,12 +170,12 @@ input {
 
 .reel::before {
   top: 0;
-  background: linear-gradient(to bottom, rgba(31, 20, 9, 0.52), transparent);
+  background: linear-gradient(to bottom, rgba(31, 20, 9, 0.54), rgba(31, 20, 9, 0.12), transparent);
 }
 
 .reel::after {
   bottom: 0;
-  background: linear-gradient(to top, rgba(31, 20, 9, 0.52), transparent);
+  background: linear-gradient(to top, rgba(31, 20, 9, 0.54), rgba(31, 20, 9, 0.12), transparent);
 }
 
 .numbers {
@@ -189,7 +193,18 @@ input {
     0 0 0.28em rgba(255, 207, 83, 0.8),
     0 0.05em 0.16em rgba(33, 21, 10, 0.9);
   -webkit-text-stroke: 0.025em #24180e;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.numbers span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(var(--digit-size) * 1.25);
+  flex: 0 0 calc(var(--digit-size) * 1.25);
 }
 
 .draw-hint {
@@ -213,6 +228,7 @@ input {
   width: 100%;
   height: var(--footer-bar-height);
   pointer-events: none;
+  opacity: 0.86;
   background: linear-gradient(
     to right,
     #91c200 0%,
@@ -354,10 +370,10 @@ input {
 
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(3.15rem, min(18vw, 14dvh), 6.8rem);
+    --digit-size: clamp(2.95rem, min(17vw, 13.2dvh), 6.35rem);
     --stage-pad-x: clamp(0.4rem, 3.5vw, 1rem);
     --stage-pad-top: calc(clamp(0.35rem, 1.2dvh, 0.9rem) + var(--safe-top));
-    --stage-pad-bottom: calc(clamp(2.35rem, 6.8dvh, 4rem) + var(--safe-bottom));
+    --stage-pad-bottom: calc(clamp(3.15rem, 8.2dvh, 4.8rem) + var(--safe-bottom));
   }
 
   .hero-stage::after {
@@ -380,9 +396,9 @@ input {
 
 @media (max-height: 620px) {
   :root {
-    --digit-size: clamp(2.75rem, min(12vw, 13dvh), 5.8rem);
+    --digit-size: clamp(2.45rem, min(11vw, 11.5dvh), 5.15rem);
     --stage-pad-top: calc(0.35rem + var(--safe-top));
-    --stage-pad-bottom: calc(1.75rem + var(--safe-bottom));
+    --stage-pad-bottom: calc(2.5rem + var(--safe-bottom));
   }
 
   .draw-hint {

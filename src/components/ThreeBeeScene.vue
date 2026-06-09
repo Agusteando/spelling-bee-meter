@@ -7,6 +7,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import {
   AdditiveBlending,
   BufferGeometry,
+  CanvasTexture,
   DoubleSide,
   Float32BufferAttribute,
   Group,
@@ -17,6 +18,8 @@ import {
   Points,
   PointsMaterial,
   Scene,
+  Shape,
+  ShapeGeometry,
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
@@ -28,7 +31,6 @@ import {
 import backgroundPanelUrl from '../assets/spelling/background_panel.jpg';
 import beeLeftUrl from '../assets/spelling/bee_left.png';
 import beeRightUrl from '../assets/spelling/bee_right.png';
-import hillsUrl from '../assets/spelling/hills.png';
 import treeLeftUrl from '../assets/spelling/tree_left_flowers.png';
 import treeOrangeUrl from '../assets/spelling/tree_orange_spots.png';
 import treeGoldUrl from '../assets/spelling/tree_gold_flowers.png';
@@ -59,14 +61,16 @@ let worldRoot;
 let lastUserActivity = 0;
 let nextRareBeeAt = 0;
 
+const WORLD_WIDTH = 14.2;
+const SAFE_CONTENT_HALF_WIDTH = 3.75;
 const animated = [];
 const cleanup = [];
 const textureLoader = new TextureLoader();
 const pointerTarget = new Vector2(0, 0);
 const cameraDrift = new Vector2(0, 0);
 
-function addToWorld(object) {
-  (worldRoot || scene).add(object);
+function addToWorld(object, parent) {
+  (parent || worldRoot || scene).add(object);
 }
 
 function makeTexture(url) {
@@ -76,8 +80,22 @@ function makeTexture(url) {
   return texture;
 }
 
+function makeCanvasTexture(draw) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  draw(ctx, canvas.width, canvas.height);
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  cleanup.push(() => texture.dispose());
+  return texture;
+}
+
 function createPlane({
   url,
+  texture,
   width,
   height,
   x = 0,
@@ -88,11 +106,12 @@ function createPlane({
   depthWrite = false,
   depthTest = true,
   renderOrder = 0,
-  visible = true
+  visible = true,
+  parent
 }) {
-  const texture = makeTexture(url);
+  const map = texture || makeTexture(url);
   const material = new MeshBasicMaterial({
-    map: texture,
+    map,
     transparent,
     opacity,
     depthWrite,
@@ -105,11 +124,11 @@ function createPlane({
   mesh.position.set(x, y, z);
   mesh.renderOrder = renderOrder;
   mesh.visible = visible;
-  addToWorld(mesh);
+  addToWorld(mesh, parent);
   cleanup.push(() => {
     geometry.dispose();
     material.dispose();
-    texture.dispose();
+    if (!texture) map.dispose();
   });
   return mesh;
 }
@@ -125,6 +144,7 @@ function createBillboard({
   depthTest = false,
   renderOrder = 0,
   visible = true,
+  parent,
   sizeAttenuation = true
 }) {
   const texture = makeTexture(url);
@@ -142,7 +162,7 @@ function createBillboard({
   sprite.scale.set(width, height, 1);
   sprite.renderOrder = renderOrder;
   sprite.visible = visible;
-  addToWorld(sprite);
+  addToWorld(sprite, parent);
   cleanup.push(() => {
     material.dispose();
     texture.dispose();
@@ -158,9 +178,117 @@ function createColorPlane({
   z = 0,
   color = '#2f7d37',
   opacity = 1,
-  renderOrder = 0
+  renderOrder = 0,
+  parent
 }) {
   const geometry = new PlaneGeometry(width, height);
+  const material = new MeshBasicMaterial({
+    color,
+    transparent: opacity < 1,
+    opacity,
+    depthWrite: false,
+    depthTest: false,
+    side: DoubleSide
+  });
+  const mesh = new Mesh(geometry, material);
+  mesh.position.set(x, y, z);
+  mesh.renderOrder = renderOrder;
+  addToWorld(mesh, parent);
+  cleanup.push(() => {
+    geometry.dispose();
+    material.dispose();
+  });
+  return mesh;
+}
+
+function addBreathingLayer(mesh, options = {}) {
+  animated.push({
+    type: 'breathing',
+    mesh,
+    basePosition: mesh.position.clone(),
+    baseRotationZ: mesh.rotation.z,
+    baseScale: mesh.scale.clone(),
+    phase: options.phase ?? Math.random() * Math.PI * 2,
+    floatX: options.floatX ?? 0,
+    floatY: options.floatY ?? 0.08,
+    scale: options.scale ?? 0.02,
+    rotate: options.rotate ?? 0.02,
+    speed: options.speed ?? 0.75,
+    orbitX: options.orbitX ?? 0,
+    orbitY: options.orbitY ?? 0,
+    parallax: options.parallax ?? 0
+  });
+}
+
+function addPatternAnimation(mesh, options = {}) {
+  animated.push({
+    type: 'pattern',
+    mesh,
+    basePosition: mesh.position.clone(),
+    baseRotationZ: mesh.rotation.z,
+    baseOpacity: mesh.material.opacity,
+    phase: options.phase ?? 0,
+    speed: options.speed ?? 0.2,
+    opacityWave: options.opacityWave ?? 0.05,
+    driftX: options.driftX ?? 0.02,
+    driftY: options.driftY ?? 0.018,
+    rotate: options.rotate ?? 0.006,
+    parallax: options.parallax ?? 0.05
+  });
+}
+
+function sampleFrontGround(x) {
+  return -2.78 + Math.sin((x + 0.8) * 0.95) * 0.12 + Math.sin(x * 1.9) * 0.045;
+}
+
+function sampleMidGround(x) {
+  return -2.54 + Math.sin((x - 0.25) * 0.82) * 0.13 + Math.sin(x * 1.25) * 0.035;
+}
+
+function sampleBackGround(x) {
+  return -2.36 + Math.sin((x + 1.4) * 0.7) * 0.1;
+}
+
+function createWavyHill({
+  width,
+  height,
+  x = 0,
+  y = 0,
+  z = 0,
+  color,
+  opacity = 1,
+  renderOrder = 0,
+  amplitude = 0.24,
+  frequency = 1,
+  phase = 0
+}) {
+  const shape = new Shape();
+  const left = -width / 2;
+  const bottom = -height / 2;
+  const topBase = height / 2 - 0.45;
+  const points = [];
+  const segments = 12;
+  for (let i = 0; i <= segments; i += 1) {
+    const px = left + (width / segments) * i;
+    const py = topBase + Math.sin(i * frequency + phase) * amplitude + Math.sin(i * 0.57 + phase) * amplitude * 0.4;
+    points.push([px, py]);
+  }
+
+  shape.moveTo(left, bottom);
+  shape.lineTo(points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i += 1) {
+    const [prevX, prevY] = points[i - 1];
+    const [nextX, nextY] = points[i];
+    const midX = (prevX + nextX) / 2;
+    const midY = (prevY + nextY) / 2;
+    shape.quadraticCurveTo(prevX, prevY, midX, midY);
+  }
+  const last = points[points.length - 1];
+  shape.lineTo(last[0], last[1]);
+  shape.lineTo(width / 2, bottom);
+  shape.lineTo(left, bottom);
+
+  const geometry = new ShapeGeometry(shape, 48);
   const material = new MeshBasicMaterial({
     color,
     transparent: opacity < 1,
@@ -180,34 +308,123 @@ function createColorPlane({
   return mesh;
 }
 
-function addBreathingLayer(mesh, options = {}) {
-  animated.push({
-    mesh,
-    basePosition: mesh.position.clone(),
-    baseRotationZ: mesh.rotation.z,
-    baseScale: mesh.scale.clone(),
-    phase: options.phase ?? Math.random() * Math.PI * 2,
-    floatX: options.floatX ?? 0,
-    floatY: options.floatY ?? 0.08,
-    scale: options.scale ?? 0.02,
-    rotate: options.rotate ?? 0.02,
-    speed: options.speed ?? 0.75,
-    driftX: options.driftX ?? 0,
-    driftY: options.driftY ?? 0,
-    orbitX: options.orbitX ?? 0,
-    orbitY: options.orbitY ?? 0,
-    parallax: options.parallax ?? 0
+function createPatternTexture(type, palette) {
+  return makeCanvasTexture((ctx, width, height) => {
+    ctx.clearRect(0, 0, width, height);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (type === 'circles') {
+      ctx.strokeStyle = palette.stroke;
+      ctx.lineWidth = 18;
+      for (let i = 0; i < 6; i += 1) {
+        ctx.beginPath();
+        ctx.arc(60 + i * 92, 90 + (i % 2) * 220, 62 + (i % 3) * 18, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    if (type === 'diagonal') {
+      ctx.strokeStyle = palette.stroke;
+      ctx.lineWidth = 14;
+      for (let i = -5; i < 12; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(i * 70, height + 20);
+        ctx.lineTo(i * 70 + 280, -20);
+        ctx.stroke();
+      }
+    }
+
+    if (type === 'dots') {
+      ctx.fillStyle = palette.fill;
+      for (let y = 58; y < height; y += 62) {
+        for (let x = 58; x < width; x += 62) {
+          ctx.beginPath();
+          ctx.arc(x, y, 8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    if (type === 'blocks') {
+      ctx.fillStyle = palette.fill;
+      for (let y = 0; y < height; y += 168) {
+        for (let x = 0; x < width; x += 168) {
+          ctx.save();
+          ctx.translate(x + 84, y + 84);
+          ctx.rotate(((x + y) % 3) * 0.2);
+          ctx.fillRect(-52, -52, 104, 104);
+          ctx.restore();
+        }
+      }
+    }
+
+    if (type === 'wings') {
+      ctx.strokeStyle = palette.stroke;
+      ctx.lineWidth = 15;
+      for (let i = 0; i < 4; i += 1) {
+        const ox = 90 + i * 125;
+        const oy = 135 + (i % 2) * 190;
+        ctx.beginPath();
+        ctx.ellipse(ox, oy, 90, 36, -0.35, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(ox + 70, oy + 3, 90, 36, 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
   });
 }
 
+function addPatternTileGrid() {
+  const types = ['circles', 'diagonal', 'dots', 'blocks', 'wings'];
+  const palette = {
+    stroke: 'rgba(154, 123, 65, 0.2)',
+    fill: 'rgba(197, 158, 85, 0.16)'
+  };
+  const cols = 6;
+  const rows = 3;
+  const tileWidth = 2.28;
+  const tileHeight = 1.72;
+  const startX = -((cols - 1) * tileWidth) / 2;
+  const startY = 1.52;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let col = 0; col < cols; col += 1) {
+      const texture = createPatternTexture(types[(row * cols + col) % types.length], palette);
+      const tile = createPlane({
+        texture,
+        width: tileWidth + 0.02,
+        height: tileHeight + 0.02,
+        x: startX + col * tileWidth,
+        y: startY - row * tileHeight,
+        z: -2.42 - row * 0.06,
+        opacity: 0.32,
+        transparent: true,
+        depthTest: false,
+        renderOrder: 2
+      });
+      addPatternAnimation(tile, {
+        phase: row * 0.7 + col * 0.31,
+        speed: 0.13 + ((row + col) % 4) * 0.035,
+        opacityWave: 0.05,
+        driftX: 0.015 + col * 0.002,
+        driftY: 0.012 + row * 0.003,
+        rotate: 0.004,
+        parallax: 0.035 + row * 0.018
+      });
+    }
+  }
+}
+
 function addParticleField() {
-  const count = 128;
+  const count = 148;
   const positions = [];
-  const spread = new Vector2(13.8, 6.2);
+  const spread = new Vector2(13.2, 5.9);
   for (let i = 0; i < count; i += 1) {
     positions.push(
       (Math.random() - 0.5) * spread.x,
-      (Math.random() - 0.5) * spread.y + 0.05,
+      (Math.random() - 0.5) * spread.y + 0.08,
       Math.random() * 2.8 - 0.15
     );
   }
@@ -219,20 +436,18 @@ function addParticleField() {
     map: texture,
     transparent: true,
     opacity: 0.56,
-    size: 0.13,
+    size: 0.12,
     blending: AdditiveBlending,
     depthWrite: false
   });
   const points = new Points(geometry, material);
-  points.position.z = 2.6;
+  points.position.z = 2.72;
   points.renderOrder = 12;
   addToWorld(points);
   animated.push({
+    type: 'particles',
     mesh: points,
-    particleField: true,
     basePosition: points.position.clone(),
-    baseRotationZ: 0,
-    baseScale: points.scale.clone(),
     phase: Math.random() * Math.PI,
     speed: 0.18
   });
@@ -258,72 +473,82 @@ function createDancingFlower({
   order = 90,
   opacity = 1
 }) {
-  const stemWidth = Math.max(0.035, size * 0.085);
+  const root = new Group();
+  root.position.set(x, baseY, z);
+  root.renderOrder = order;
+  addToWorld(root);
+
+  const stemWidth = Math.max(0.035, size * 0.08);
   const stem = createColorPlane({
     width: stemWidth,
     height: stemHeight,
-    x,
-    y: baseY + stemHeight / 2,
-    z,
+    x: 0,
+    y: stemHeight / 2,
+    z: 0,
     color: stemColor,
-    opacity: 0.92,
-    renderOrder: order
+    opacity: 0.94,
+    renderOrder: order,
+    parent: root
   });
+
+  const leafLeft = createColorPlane({
+    width: stemWidth * 5.0,
+    height: stemWidth * 1.9,
+    x: -stemWidth * 2.1,
+    y: stemHeight * 0.38,
+    z: 0.015,
+    color: '#4f983f',
+    opacity: 0.84,
+    renderOrder: order + 1,
+    parent: root
+  });
+  const leafRight = createColorPlane({
+    width: stemWidth * 4.8,
+    height: stemWidth * 1.75,
+    x: stemWidth * 2.1,
+    y: stemHeight * 0.58,
+    z: 0.015,
+    color: '#78a843',
+    opacity: 0.8,
+    renderOrder: order + 1,
+    parent: root
+  });
+
   const head = createBillboard({
     url,
     width: size,
     height: size * 1.08,
-    x,
-    y: baseY + stemHeight,
-    z: z + 0.035,
+    x: 0,
+    y: stemHeight,
+    z: 0.05,
     opacity,
     depthTest: false,
-    renderOrder: order + 2
-  });
-  const leafLeft = createColorPlane({
-    width: stemWidth * 4.8,
-    height: stemWidth * 1.9,
-    x: x - stemWidth * 2.2,
-    y: baseY + stemHeight * 0.42,
-    z: z + 0.015,
-    color: '#4f983f',
-    opacity: 0.82,
-    renderOrder: order + 1
-  });
-  const leafRight = createColorPlane({
-    width: stemWidth * 4.4,
-    height: stemWidth * 1.75,
-    x: x + stemWidth * 2.15,
-    y: baseY + stemHeight * 0.58,
-    z: z + 0.012,
-    color: '#78a843',
-    opacity: 0.78,
-    renderOrder: order + 1
+    renderOrder: order + 3,
+    parent: root
   });
 
-  leafLeft.rotation.z = -0.62;
-  leafRight.rotation.z = 0.58;
+  leafLeft.rotation.z = -0.68;
+  leafRight.rotation.z = 0.62;
 
   animated.push({
-    flowerDance: true,
+    type: 'flower',
+    root,
     head,
     stem,
     leafLeft,
     leafRight,
-    baseX: x,
-    baseY,
-    z,
+    basePosition: root.position.clone(),
+    baseRotationZ: tilt,
     stemHeight,
     stemWidth,
     baseSize: size,
     phase,
     swing,
     speed,
-    tilt,
     baseOpacity: opacity
   });
 
-  return head;
+  return root;
 }
 
 function addFlowerField() {
@@ -336,65 +561,59 @@ function addFlowerField() {
     flowerOrangeMidUrl
   ];
 
-  const foregroundGarden = [
-    [-6.55, -3.18, 5.15, 0.62, 1.04, 0, -0.08],
-    [-6.16, -3.2, 5.12, 0.42, 0.72, 3, 0.09],
-    [-5.76, -3.13, 5.18, 0.58, 0.96, 2, -0.06],
-    [-5.28, -3.18, 5.18, 0.36, 0.62, 4, 0.07],
-    [-4.82, -3.2, 5.08, 0.46, 0.82, 0, -0.04],
-    [-4.28, -3.16, 4.95, 0.36, 0.66, 5, 0.05],
-    [-3.52, -3.18, 4.82, 0.36, 0.62, 1, -0.06],
-    [-2.84, -3.16, 4.76, 0.3, 0.5, 4, 0.04],
-    [2.38, -3.16, 4.78, 0.34, 0.58, 2, -0.05],
-    [3.02, -3.17, 4.84, 0.4, 0.76, 3, 0.08],
-    [3.62, -3.13, 5.0, 0.58, 0.98, 1, -0.08],
-    [4.12, -3.2, 5.06, 0.36, 0.62, 5, 0.05],
-    [4.68, -3.14, 5.16, 0.5, 0.9, 0, -0.07],
-    [5.16, -3.2, 5.22, 0.44, 0.72, 4, 0.09],
-    [5.66, -3.12, 5.26, 0.62, 1.05, 2, -0.06],
-    [6.14, -3.18, 5.28, 0.42, 0.7, 3, 0.08],
-    [6.54, -3.16, 5.3, 0.58, 0.94, 1, -0.04]
+  const sideGarden = [
+    [-6.62, 'front', 0.54, 0.9, 0, -0.08],
+    [-6.22, 'front', 0.36, 0.64, 1, 0.08],
+    [-5.78, 'front', 0.48, 0.78, 2, -0.04],
+    [-5.34, 'front', 0.34, 0.58, 3, 0.08],
+    [-4.86, 'front', 0.43, 0.72, 4, -0.05],
+    [-4.28, 'front', 0.32, 0.55, 5, 0.06],
+    [4.06, 'front', 0.32, 0.55, 2, -0.06],
+    [4.58, 'front', 0.44, 0.74, 0, 0.07],
+    [5.04, 'front', 0.34, 0.58, 5, -0.05],
+    [5.46, 'front', 0.58, 0.92, 1, 0.08],
+    [5.96, 'front', 0.38, 0.62, 3, -0.06],
+    [6.44, 'front', 0.54, 0.86, 2, 0.06]
   ];
 
-  const midGarden = [
-    [-6.36, -2.84, 4.36, 0.34, 0.72, 0, 0.05],
-    [-5.62, -2.74, 4.18, 0.28, 0.54, 4, -0.05],
-    [-4.74, -2.84, 4.1, 0.32, 0.62, 5, 0.06],
-    [-3.82, -2.82, 3.94, 0.26, 0.5, 1, -0.06],
-    [-2.22, -2.88, 3.86, 0.24, 0.42, 2, 0.04],
-    [-0.88, -2.94, 3.82, 0.2, 0.36, 4, -0.04],
-    [0.72, -2.94, 3.84, 0.22, 0.38, 5, 0.06],
-    [2.08, -2.88, 3.9, 0.26, 0.48, 1, -0.05],
-    [3.18, -2.82, 4.0, 0.28, 0.54, 3, 0.07],
-    [4.18, -2.76, 4.22, 0.32, 0.62, 0, -0.06],
-    [5.16, -2.78, 4.3, 0.36, 0.72, 2, 0.06],
-    [6.04, -2.86, 4.42, 0.34, 0.62, 4, -0.04]
+  const safeCenterGarden = [
+    [-3.34, 'mid', 0.26, 0.42, 4, -0.04],
+    [-2.54, 'mid', 0.22, 0.36, 5, 0.05],
+    [2.42, 'mid', 0.24, 0.38, 3, -0.04],
+    [3.24, 'mid', 0.28, 0.45, 0, 0.04],
+    [-1.3, 'back', 0.16, 0.25, 1, -0.03],
+    [1.16, 'back', 0.16, 0.25, 2, 0.03]
   ];
 
-  [...foregroundGarden, ...midGarden].forEach(([x, baseY, z, size, stemHeight, textureIndex, tilt], index) => {
+  [...sideGarden, ...safeCenterGarden].forEach(([x, layer, size, stemHeight, textureIndex, tilt], index) => {
+    const ground = layer === 'front'
+      ? sampleFrontGround(x)
+      : layer === 'mid'
+        ? sampleMidGround(x)
+        : sampleBackGround(x);
+    const z = layer === 'front' ? 5.12 : layer === 'mid' ? 4.38 : 3.68;
     createDancingFlower({
       url: flowerTextures[textureIndex % flowerTextures.length],
       x,
-      baseY,
+      baseY: ground + 0.02,
       z,
       size,
       stemHeight,
       tilt,
-      order: 82 + index,
-      phase: index * 0.43,
-      speed: 0.86 + (index % 7) * 0.09,
-      swing: 0.11 + (index % 5) * 0.018,
+      order: 88 + index,
+      phase: index * 0.47,
+      speed: 0.84 + (index % 7) * 0.095,
+      swing: 0.1 + (index % 5) * 0.018,
       stemColor: index % 3 === 0 ? '#2c8a42' : index % 3 === 1 ? '#5f9d3d' : '#1d8177'
     });
   });
 
   const driftingPetals = [
-    [-1.7, -2.55, 4.9, 0.18, 0],
-    [-0.25, -2.44, 4.8, 0.14, 1],
-    [1.4, -2.6, 4.86, 0.16, 2],
-    [2.72, -2.38, 4.9, 0.14, 3],
-    [-4.92, -2.18, 4.7, 0.2, 4],
-    [4.9, -2.12, 4.76, 0.18, 5]
+    [-4.9, -2.08, 4.7, 0.2, 4],
+    [-2.86, -2.24, 4.5, 0.15, 0],
+    [0.0, -2.14, 4.48, 0.12, 2],
+    [2.82, -2.18, 4.56, 0.15, 5],
+    [4.96, -2.02, 4.72, 0.18, 1]
   ];
 
   driftingPetals.forEach(([x, y, z, size, textureIndex], index) => {
@@ -407,40 +626,72 @@ function addFlowerField() {
       z,
       opacity: 0.82,
       depthTest: false,
-      renderOrder: 118 + index
+      renderOrder: 120 + index
     });
     addBreathingLayer(petal, {
-      floatX: 0.18 + index * 0.02,
-      floatY: 0.12,
-      orbitX: 0.18,
+      floatX: 0.16 + index * 0.03,
+      floatY: 0.11,
+      orbitX: 0.12,
       orbitY: 0.08,
-      scale: 0.08,
-      rotate: 0.4,
-      speed: 0.72 + index * 0.13,
-      phase: index * 0.9
+      scale: 0.075,
+      rotate: 0.42,
+      speed: 0.7 + index * 0.14,
+      phase: index * 0.9,
+      parallax: 0.18
     });
   });
+}
+
+function createAnchoredArt({ url, width, height, x, groundY, z, opacity, renderOrder, rotation = 0, sway = 0.02, phase = 0, parallax = 0.1 }) {
+  const root = new Group();
+  root.position.set(x, groundY, z);
+  addToWorld(root);
+  const art = createPlane({
+    url,
+    width,
+    height,
+    x: 0,
+    y: height / 2,
+    z: 0,
+    opacity,
+    renderOrder,
+    depthTest: false,
+    parent: root
+  });
+  animated.push({
+    type: 'anchored',
+    root,
+    mesh: art,
+    basePosition: root.position.clone(),
+    baseRotationZ: rotation,
+    baseScale: root.scale.clone(),
+    phase,
+    speed: 0.52,
+    sway,
+    parallax
+  });
+  return root;
 }
 
 function addRareBeeTraffic() {
   const rightFlyingBee = createBillboard({
     url: beeRightUrl,
-    width: 1.18,
-    height: 1.3,
-    z: 5.05,
+    width: 1.08,
+    height: 1.19,
+    z: 5.35,
     opacity: 0.98,
     depthTest: false,
-    renderOrder: 150,
+    renderOrder: 160,
     visible: false
   });
   const leftFlyingBee = createBillboard({
     url: beeLeftUrl,
-    width: 1.18,
-    height: 1.3,
-    z: 5.05,
+    width: 1.08,
+    height: 1.19,
+    z: 5.35,
     opacity: 0.98,
     depthTest: false,
-    renderOrder: 150,
+    renderOrder: 160,
     visible: false
   });
 
@@ -449,10 +700,10 @@ function addRareBeeTraffic() {
     rightFlyingBee,
     leftFlyingBee,
     mesh: rightFlyingBee,
-    fromX: -8.3,
-    toX: 8.3,
+    fromX: -8.6,
+    toX: 8.6,
     y: 2.1,
-    z: 5.05,
+    z: 5.35,
     start: 0,
     duration: 11,
     direction: 1
@@ -461,7 +712,7 @@ function addRareBeeTraffic() {
 
 function markUserActivity() {
   lastUserActivity = performance.now() * 0.001;
-  nextRareBeeAt = lastUserActivity + 17 + Math.random() * 24;
+  nextRareBeeAt = lastUserActivity + 19 + Math.random() * 24;
   if (rareBee?.active) return;
   if (rareBee) {
     rareBee.rightFlyingBee.visible = false;
@@ -473,17 +724,17 @@ function startRareBeeFlight(t) {
   if (!rareBee) return;
   const direction = Math.random() > 0.5 ? 1 : -1;
   rareBee.direction = direction;
-  rareBee.fromX = direction > 0 ? -8.65 : 8.65;
-  rareBee.toX = direction > 0 ? 8.65 : -8.65;
-  rareBee.y = 1.55 + Math.random() * 1.55;
-  rareBee.z = 5.0 + Math.random() * 0.25;
+  rareBee.fromX = direction > 0 ? -8.7 : 8.7;
+  rareBee.toX = direction > 0 ? 8.7 : -8.7;
+  rareBee.y = 1.45 + Math.random() * 1.65;
+  rareBee.z = 5.22 + Math.random() * 0.3;
   rareBee.start = t;
-  rareBee.duration = 11.5 + Math.random() * 5.5;
+  rareBee.duration = 12 + Math.random() * 5.5;
   rareBee.mesh = direction > 0 ? rareBee.rightFlyingBee : rareBee.leftFlyingBee;
   rareBee.rightFlyingBee.visible = direction > 0;
   rareBee.leftFlyingBee.visible = direction < 0;
   rareBee.mesh.position.set(rareBee.fromX, rareBee.y, rareBee.z);
-  rareBee.mesh.rotation.z = direction > 0 ? -0.05 : 0.05;
+  rareBee.mesh.rotation.z = direction > 0 ? -0.06 : 0.06;
   rareBee.mesh.scale.set(1, 1, 1);
   rareBee.active = true;
 }
@@ -493,7 +744,7 @@ function updateRareBeeFlight(t) {
 
   const idleSeconds = t - lastUserActivity;
   if (!rareBee.active) {
-    if (idleSeconds > 14 && t >= nextRareBeeAt) {
+    if (idleSeconds > 15 && t >= nextRareBeeAt) {
       startRareBeeFlight(t);
     }
     return;
@@ -504,13 +755,13 @@ function updateRareBeeFlight(t) {
     ? 2 * progress * progress
     : 1 - ((-2 * progress + 2) ** 2) / 2;
   const mesh = rareBee.mesh;
-  const bob = Math.sin(progress * Math.PI * 3.4) * 0.24 + Math.sin(t * 8.5) * 0.06;
-  const arc = Math.sin(progress * Math.PI) * 0.42;
+  const bob = Math.sin(progress * Math.PI * 3.6) * 0.22 + Math.sin(t * 8.5) * 0.055;
+  const arc = Math.sin(progress * Math.PI) * 0.48;
   const wingPulse = 1 + Math.sin(t * 18) * 0.045;
 
   mesh.position.x = rareBee.fromX + (rareBee.toX - rareBee.fromX) * ease;
   mesh.position.y = rareBee.y + bob + arc;
-  mesh.position.z = rareBee.z + Math.sin(progress * Math.PI) * 0.3;
+  mesh.position.z = rareBee.z + Math.sin(progress * Math.PI) * 0.34;
   mesh.rotation.z = (rareBee.direction > 0 ? -0.08 : 0.08) + Math.sin(t * 7) * 0.045;
   mesh.scale.set(1 + Math.sin(t * 11) * 0.02, wingPulse, 1);
 
@@ -518,58 +769,57 @@ function updateRareBeeFlight(t) {
     rareBee.active = false;
     rareBee.rightFlyingBee.visible = false;
     rareBee.leftFlyingBee.visible = false;
-    nextRareBeeAt = t + 22 + Math.random() * 36;
+    nextRareBeeAt = t + 24 + Math.random() * 36;
   }
 }
 
 function buildScene() {
-  createPlane({ url: backgroundPanelUrl, width: 13.4, height: 7.55, y: 0.25, z: -3.2, transparent: false, depthWrite: true, renderOrder: 0 });
+  createPlane({
+    url: backgroundPanelUrl,
+    width: 10.45,
+    height: 5.85,
+    y: 0.28,
+    z: -3.05,
+    opacity: 0.68,
+    transparent: true,
+    depthTest: false,
+    renderOrder: 0
+  });
 
-  const topLogo = createPlane({ url: iedisLogoUrl, width: 3.52, height: 1.47, x: 0, y: 2.72, z: -0.1, opacity: 0.96, renderOrder: 8 });
-  addBreathingLayer(topLogo, { floatY: 0.025, scale: 0.006, rotate: 0.004, speed: 0.35, parallax: 0.04 });
+  addPatternTileGrid();
 
-  const eventLogo = createPlane({ url: eventLogoUrl, width: 3.78, height: 1.13, x: 0.2, y: -0.94, z: 1.4, opacity: 0.96, renderOrder: 24 });
-  addBreathingLayer(eventLogo, { floatY: 0.04, scale: 0.01, rotate: 0.006, speed: 0.55, parallax: 0.08 });
+  createWavyHill({ width: 16.0, height: 2.05, x: 0, y: -2.58, z: -0.3, color: '#cbd966', opacity: 0.82, renderOrder: 15, amplitude: 0.18, frequency: 0.8, phase: 0.5 });
+  createWavyHill({ width: 16.2, height: 1.86, x: -0.15, y: -2.78, z: 1.45, color: '#acc348', opacity: 0.9, renderOrder: 30, amplitude: 0.22, frequency: 0.9, phase: 1.25 });
+  createWavyHill({ width: 16.5, height: 1.58, x: 0.15, y: -2.94, z: 3.55, color: '#8fb93e', opacity: 0.98, renderOrder: 62, amplitude: 0.2, frequency: 1.0, phase: 2.0 });
 
-  const hillsBack = createPlane({ url: hillsUrl, width: 15.2, height: 3.43, x: -0.1, y: -3.02, z: 0.15, opacity: 0.94, renderOrder: 16 });
-  addBreathingLayer(hillsBack, { floatY: 0.045, scale: 0.008, rotate: 0.003, speed: 0.42, parallax: 0.06 });
+  const topLogo = createPlane({ url: iedisLogoUrl, width: 3.36, height: 1.4, x: 0, y: 2.74, z: -0.04, opacity: 0.98, renderOrder: 10, depthTest: false });
+  addBreathingLayer(topLogo, { floatY: 0.022, scale: 0.006, rotate: 0.004, speed: 0.35, parallax: 0.04 });
 
-  const hillsFront = createPlane({ url: hillsUrl, width: 15.9, height: 3.59, x: 0.2, y: -3.32, z: 2.05, opacity: 0.86, renderOrder: 30 });
-  addBreathingLayer(hillsFront, { floatY: 0.04, scale: 0.012, rotate: 0.002, speed: 0.36, phase: 1.8, parallax: 0.12 });
+  const eventLogo = createPlane({ url: eventLogoUrl, width: 3.68, height: 1.1, x: 0.08, y: -0.96, z: 1.55, opacity: 0.96, renderOrder: 26, depthTest: false });
+  addBreathingLayer(eventLogo, { floatY: 0.035, scale: 0.01, rotate: 0.006, speed: 0.55, parallax: 0.08 });
 
-  const leftTree = createPlane({ url: treeLeftUrl, width: 2.44, height: 5.93, x: -5.96, y: -0.78, z: 0.92, opacity: 0.97, renderOrder: 20 });
-  leftTree.rotation.z = -0.025;
-  addBreathingLayer(leftTree, { floatY: 0.03, scale: 0.012, rotate: 0.026, speed: 0.62, parallax: 0.1 });
+  createAnchoredArt({ url: treeLeftUrl, width: 1.95, height: 4.78, x: -6.34, groundY: sampleMidGround(-6.34) - 0.03, z: 1.04, opacity: 0.97, renderOrder: 28, rotation: -0.015, sway: 0.02, phase: 0.4, parallax: 0.1 });
+  createAnchoredArt({ url: plantButterflyUrl, width: 1.06, height: 2.04, x: -5.18, groundY: sampleFrontGround(-5.18) - 0.02, z: 3.3, opacity: 0.95, renderOrder: 72, rotation: -0.065, sway: 0.035, phase: 2.4, parallax: 0.17 });
+  createAnchoredArt({ url: treeOrangeUrl, width: 1.78, height: 3.3, x: 5.82, groundY: sampleMidGround(5.82) - 0.03, z: 1.06, opacity: 0.98, renderOrder: 28, rotation: 0.025, sway: 0.022, phase: 2.2, parallax: 0.1 });
+  createAnchoredArt({ url: treeGoldUrl, width: 1.16, height: 2.52, x: -6.78, groundY: sampleFrontGround(-6.78) - 0.02, z: 3.22, opacity: 0.9, renderOrder: 70, rotation: 0.04, sway: 0.028, phase: 1.2, parallax: 0.18 });
 
-  const leftPlant = createPlane({ url: plantButterflyUrl, width: 1.28, height: 2.46, x: -5.24, y: -2.12, z: 2.28, opacity: 0.95, renderOrder: 34 });
-  leftPlant.rotation.z = -0.075;
-  addBreathingLayer(leftPlant, { floatY: 0.075, floatX: 0.025, scale: 0.018, rotate: 0.04, speed: 0.82, parallax: 0.16 });
-
-  const rightTree = createPlane({ url: treeOrangeUrl, width: 2.12, height: 3.92, x: 5.82, y: -1.05, z: 0.96, opacity: 0.98, renderOrder: 20 });
-  rightTree.rotation.z = 0.035;
-  addBreathingLayer(rightTree, { floatY: 0.035, scale: 0.01, rotate: 0.027, speed: 0.58, phase: 2.2, parallax: 0.1 });
-
-  const goldTree = createPlane({ url: treeGoldUrl, width: 1.48, height: 3.22, x: -6.62, y: -1.86, z: 2.38, opacity: 0.9, renderOrder: 32 });
-  goldTree.rotation.z = 0.04;
-  addBreathingLayer(goldTree, { floatY: 0.04, scale: 0.012, rotate: 0.028, speed: 0.68, phase: 0.6, parallax: 0.16 });
-
-  const leftBee = createBillboard({ url: beeRightUrl, width: 1.68, height: 1.85, x: -5.34, y: 2.1, z: 3.35, opacity: 0.98, depthTest: false, renderOrder: 140 });
+  const leftBee = createBillboard({ url: beeRightUrl, width: 1.26, height: 1.38, x: -5.92, y: 2.35, z: 3.5, opacity: 0.98, depthTest: false, renderOrder: 142 });
   leftBee.rotation.z = -0.06;
-  addBreathingLayer(leftBee, { floatY: 0.34, floatX: 0.42, scale: 0.035, rotate: 0.12, speed: 1.22, orbitX: 0.34, orbitY: 0.14, parallax: 0.2 });
+  addBreathingLayer(leftBee, { floatY: 0.27, floatX: 0.34, scale: 0.035, rotate: 0.12, speed: 1.22, orbitX: 0.3, orbitY: 0.14, parallax: 0.2 });
 
-  const rightBee = createBillboard({ url: beeLeftUrl, width: 1.58, height: 1.73, x: 5.48, y: 2.78, z: 3.38, opacity: 0.98, depthTest: false, renderOrder: 140 });
+  const rightBee = createBillboard({ url: beeLeftUrl, width: 1.22, height: 1.34, x: 5.98, y: 2.52, z: 3.5, opacity: 0.98, depthTest: false, renderOrder: 142 });
   rightBee.rotation.z = 0.03;
-  addBreathingLayer(rightBee, { floatY: 0.28, floatX: 0.36, scale: 0.03, rotate: 0.11, speed: 1.12, phase: 1.7, orbitX: 0.3, orbitY: 0.16, parallax: 0.2 });
+  addBreathingLayer(rightBee, { floatY: 0.24, floatX: 0.3, scale: 0.03, rotate: 0.11, speed: 1.12, phase: 1.7, orbitX: 0.28, orbitY: 0.16, parallax: 0.2 });
 
   addFlowerField();
 
-  const butterflyA = createBillboard({ url: butterflyYellowUrl, width: 0.54, height: 0.5, x: -4.62, y: -1.8, z: 4.6, opacity: 0.9, depthTest: false, renderOrder: 125 });
+  const butterflyA = createBillboard({ url: butterflyYellowUrl, width: 0.48, height: 0.44, x: -4.55, y: -1.6, z: 4.76, opacity: 0.9, depthTest: false, renderOrder: 125 });
   addBreathingLayer(butterflyA, { floatY: 0.25, floatX: 0.25, scale: 0.04, rotate: 0.2, speed: 1.35, orbitX: 0.25, orbitY: 0.18, parallax: 0.24 });
 
-  const butterflyB = createBillboard({ url: butterflyTealUrl, width: 0.46, height: 0.26, x: 5.2, y: -1.85, z: 4.62, opacity: 0.9, depthTest: false, renderOrder: 125 });
+  const butterflyB = createBillboard({ url: butterflyTealUrl, width: 0.42, height: 0.24, x: 4.78, y: -1.62, z: 4.78, opacity: 0.9, depthTest: false, renderOrder: 125 });
   addBreathingLayer(butterflyB, { floatY: 0.22, floatX: 0.24, scale: 0.035, rotate: 0.17, speed: 1.18, phase: 2.2, orbitX: 0.28, orbitY: 0.12, parallax: 0.24 });
 
-  const butterflyC = createBillboard({ url: butterflyGoldUrl, width: 0.38, height: 0.26, x: -2.35, y: -2.0, z: 4.64, opacity: 0.84, depthTest: false, renderOrder: 125 });
+  const butterflyC = createBillboard({ url: butterflyGoldUrl, width: 0.34, height: 0.24, x: -2.9, y: -1.88, z: 4.62, opacity: 0.84, depthTest: false, renderOrder: 125 });
   addBreathingLayer(butterflyC, { floatY: 0.2, floatX: 0.18, scale: 0.036, rotate: 0.18, speed: 1.08, phase: 1.1, orbitX: 0.18, orbitY: 0.1, parallax: 0.24 });
 
   addParticleField();
@@ -581,43 +831,54 @@ function animate(time = 0) {
 
   cameraDrift.x += (pointerTarget.x - cameraDrift.x) * 0.035;
   cameraDrift.y += (pointerTarget.y - cameraDrift.y) * 0.035;
-  camera.position.x = cameraDrift.x * 0.2;
-  camera.position.y = 0.15 + cameraDrift.y * 0.12;
-  camera.lookAt(cameraDrift.x * 0.05, 0.08 + cameraDrift.y * 0.04, 0);
+  camera.position.x = cameraDrift.x * 0.17;
+  camera.position.y = 0.16 + cameraDrift.y * 0.1;
+  camera.lookAt(cameraDrift.x * 0.045, 0.08 + cameraDrift.y * 0.035, 0);
 
   animated.forEach(item => {
-    if (item.particleField) {
+    if (item.type === 'particles') {
       item.mesh.rotation.z = Math.sin(t * item.speed + item.phase) * 0.05;
       item.mesh.position.y = item.basePosition.y + Math.sin(t * 0.34 + item.phase) * 0.08;
       return;
     }
 
-    if (item.flowerDance) {
+    if (item.type === 'pattern') {
       const wave = Math.sin(t * item.speed + item.phase);
-      const quick = Math.sin(t * item.speed * 2.2 + item.phase * 0.7);
-      const angle = item.tilt + wave * item.swing;
-      const sin = Math.sin(angle);
-      const cos = Math.cos(angle);
-      const stemMidX = item.baseX + sin * item.stemHeight * 0.5;
-      const stemMidY = item.baseY + cos * item.stemHeight * 0.5;
-      const headX = item.baseX + sin * item.stemHeight + quick * 0.025;
-      const headY = item.baseY + cos * item.stemHeight + Math.abs(wave) * 0.045;
-      const leafWave = Math.sin(t * item.speed * 1.4 + item.phase);
-      const pulse = 1 + wave * 0.07 + quick * 0.015;
+      const drift = Math.cos(t * item.speed * 0.8 + item.phase);
+      item.mesh.position.x = item.basePosition.x + wave * item.driftX - cameraDrift.x * item.parallax;
+      item.mesh.position.y = item.basePosition.y + drift * item.driftY - cameraDrift.y * item.parallax * 0.45;
+      item.mesh.rotation.z = item.baseRotationZ + wave * item.rotate;
+      item.mesh.material.opacity = item.baseOpacity + wave * item.opacityWave;
+      return;
+    }
 
-      item.stem.position.x = stemMidX;
-      item.stem.position.y = stemMidY;
-      item.stem.rotation.z = -angle;
-      item.head.position.x = headX;
-      item.head.position.y = headY;
-      item.head.rotation.z = wave * 0.24 + quick * 0.05;
+    if (item.type === 'anchored') {
+      const wave = Math.sin(t * item.speed + item.phase);
+      item.root.position.x = item.basePosition.x - cameraDrift.x * item.parallax;
+      item.root.position.y = item.basePosition.y - cameraDrift.y * item.parallax * 0.3;
+      item.root.rotation.z = item.baseRotationZ + wave * item.sway;
+      const scale = 1 + Math.sin(t * item.speed * 0.7 + item.phase) * 0.006;
+      item.root.scale.set(scale, scale, 1);
+      return;
+    }
+
+    if (item.type === 'flower') {
+      const wave = Math.sin(t * item.speed + item.phase);
+      const quick = Math.sin(t * item.speed * 2.45 + item.phase * 0.7);
+      const pulse = 1 + wave * 0.072 + quick * 0.018;
+      const bend = item.baseRotationZ + wave * item.swing;
+      const leafWave = Math.sin(t * item.speed * 1.4 + item.phase);
+
+      item.root.position.x = item.basePosition.x + quick * 0.01 - cameraDrift.x * 0.08;
+      item.root.position.y = item.basePosition.y - cameraDrift.y * 0.025;
+      item.root.rotation.z = bend;
+      item.stem.scale.y = 1 + Math.abs(wave) * 0.025;
+      item.head.position.x = quick * 0.03;
+      item.head.position.y = item.stemHeight + Math.abs(wave) * 0.05;
+      item.head.rotation.z = wave * 0.24 + quick * 0.06;
       item.head.scale.set(item.baseSize * pulse, item.baseSize * 1.08 * (1 + wave * 0.045), 1);
-      item.leafLeft.position.x = item.baseX - item.stemWidth * 2.2 + sin * item.stemHeight * 0.38;
-      item.leafLeft.position.y = item.baseY + cos * item.stemHeight * 0.42;
-      item.leafLeft.rotation.z = -0.62 - angle * 0.35 + leafWave * 0.07;
-      item.leafRight.position.x = item.baseX + item.stemWidth * 2.15 + sin * item.stemHeight * 0.54;
-      item.leafRight.position.y = item.baseY + cos * item.stemHeight * 0.58;
-      item.leafRight.rotation.z = 0.58 - angle * 0.28 - leafWave * 0.06;
+      item.leafLeft.rotation.z = -0.68 - bend * 0.35 + leafWave * 0.08;
+      item.leafRight.rotation.z = 0.62 - bend * 0.28 - leafWave * 0.07;
       return;
     }
 
@@ -645,16 +906,17 @@ function resize() {
   const aspect = width / safeHeight;
   const shortViewport = Math.max(0, Math.min(1, (680 - safeHeight) / 280));
   const narrowViewport = Math.max(0, Math.min(1, (0.9 - aspect) / 0.38));
+  const ultrawide = Math.max(0, Math.min(1, (aspect - 1.9) / 0.8));
 
   renderer.setSize(width, safeHeight, false);
   camera.aspect = aspect;
-  camera.position.z = 11.15 + shortViewport * 1.1 + narrowViewport * 1.55;
-  camera.fov = 43.5 + shortViewport * 4.5 + narrowViewport * 4;
+  camera.position.z = 11.45 + shortViewport * 1.35 + narrowViewport * 1.7 - ultrawide * 0.22;
+  camera.fov = 42.4 + shortViewport * 5.2 + narrowViewport * 4.8;
 
   if (worldRoot) {
-    const scale = 1 - shortViewport * 0.08 - narrowViewport * 0.06;
+    const scale = 1 - shortViewport * 0.1 - narrowViewport * 0.075;
     worldRoot.scale.setScalar(scale);
-    worldRoot.position.y = 0.14 + shortViewport * 0.42;
+    worldRoot.position.y = 0.18 + shortViewport * 0.34 + narrowViewport * 0.12;
     worldRoot.position.x = 0;
   }
 
@@ -672,8 +934,8 @@ onMounted(() => {
   scene = new Scene();
   worldRoot = new Group();
   scene.add(worldRoot);
-  camera = new PerspectiveCamera(43.5, 1, 0.1, 100);
-  camera.position.set(0, 0.15, 11.15);
+  camera = new PerspectiveCamera(42.4, 1, 0.1, 100);
+  camera.position.set(0, 0.16, 11.45);
 
   renderer = new WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'high-performance' });
   renderer.setClearColor(0x000000, 0);
