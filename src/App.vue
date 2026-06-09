@@ -137,11 +137,21 @@ function measureDigit() {
   digitHeight = span?.getBoundingClientRect().height || 0;
 }
 
-function resetReelColumns() {
-  reelsRoot.value?.querySelectorAll('.numbers').forEach(column => {
+function lastDisplayedValue() {
+  return state.value.drawn.at(-1) ?? 0;
+}
+
+function resetReelColumns(value = lastDisplayedValue()) {
+  const digits = pad(value).split('').map(Number);
+  reelsRoot.value?.querySelectorAll('.numbers').forEach((column, index) => {
+    const digit = digits[index] ?? 0;
     column.style.transition = 'none';
-    column.style.transform = 'translateY(0)';
+    column.style.transform = `translateY(${-digit * digitHeight}px)`;
   });
+}
+
+function notifySceneActivity() {
+  window.dispatchEvent(new CustomEvent('bee-meter-activity'));
 }
 
 function pad(value) {
@@ -168,17 +178,16 @@ async function spinTo(value) {
 
   await Promise.all(columns.map((column, index) => new Promise(resolve => {
     const loops = LOOPS + index;
-    const endY = -(loops * 10 + digits[index]) * digitHeight;
+    const digit = digits[index] ?? 0;
+    const endY = -(loops * 10 + digit) * digitHeight;
 
-    column.style.transition = 'none';
-    column.style.transform = 'translateY(0)';
-    column.getBoundingClientRect();
     column.style.transition = 'transform var(--spin-time) cubic-bezier(.32,.02,.19,1)';
+    column.getBoundingClientRect();
 
     const finish = () => {
       column.removeEventListener('transitionend', finish);
       column.style.transition = 'none';
-      column.style.transform = `translateY(${-digits[index] * digitHeight}px)`;
+      column.style.transform = `translateY(${-digit * digitHeight}px)`;
       resolve();
     };
 
@@ -193,12 +202,13 @@ async function spinTo(value) {
 
 async function draw() {
   if (rolling.value) return;
+  notifySceneActivity();
 
   if (state.value.idx + 1 >= state.value.data.length) {
     state.value = fresh(state.value.max);
     await nextTick();
-    resetReelColumns();
     measureDigit();
+    resetReelColumns(0);
   }
 
   state.value.idx += 1;
@@ -210,27 +220,31 @@ async function draw() {
 
 async function resetList() {
   if (rolling.value) return;
+  notifySceneActivity();
   state.value = fresh(state.value.max);
   saveState();
   await nextTick();
-  resetReelColumns();
   measureDigit();
+  resetReelColumns(0);
 }
 
 function clearAll() {
   if (rolling.value) return;
+  notifySceneActivity();
   localStorage.removeItem(STATE_KEY);
   window.location.reload();
 }
 
 function applyMax() {
   if (rolling.value) return;
+  notifySceneActivity();
   const nextMax = Math.max(1, parseInt(maxInput.value, 10) || DEF_MAX);
   window.location.search = `?max=${nextMax}`;
 }
 
 function applyDuration() {
   if (rolling.value) return;
+  notifySceneActivity();
   spinInput.value = Math.max(1, parseFloat(spinInput.value) || DEF_SEC);
   localStorage.setItem(DUR_KEY, spinInput.value);
   setSpinTimeCss();

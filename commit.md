@@ -1,1 +1,1 @@
-Corrige la instalación de dependencias usando el registro público de npm
+Mejora escena 3D del Spelling Bee con logo IEDIS actualizado, odómetro fluido, flores visibles y eventos raros de abejas
