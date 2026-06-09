@@ -1,1 +1,1 @@
-Mejora escena 3D del Spelling Bee con logo IEDIS actualizado, odómetro fluido, flores visibles y eventos raros de abejas
+Mejora la escena 3D del Spelling Bee con flores billboard animadas, mayor profundidad visual y abejas direccionales en idle
