@@ -1,1 +1,1 @@
-Reimagina la escena como panorama 360 con splat opcional y efectos atmosféricos
+Ajusta panorama 360 con órbita automática y vista inicial inferior

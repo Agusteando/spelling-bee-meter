@@ -48,9 +48,9 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260609-233500';
-const PANO_URL = `/panoramas/spelling-landscape-pano-4096.webp?v=${BUILD_STAMP}`;
-const PANO_FALLBACK_URL = `/panoramas/spelling-landscape-pano-4096.jpg?v=${BUILD_STAMP}`;
+const BUILD_STAMP = '20260609-234300';
+const PANO_URL = `/panoramas/spelling-hills-pano-4096.webp?v=${BUILD_STAMP}`;
+const PANO_FALLBACK_URL = `/panoramas/spelling-hills-pano-4096.jpg?v=${BUILD_STAMP}`;
 const SPLAT_URL = `/splats/ceramic_500k.spz?v=${BUILD_STAMP}`;
 const DETAIL_FOCUS = new Vector3(-2.1509, 0.7566, 0.8363);
 const DETAIL_ROBUST_SPAN = 102.1;
@@ -78,11 +78,11 @@ let splatRequested = false;
 let lastActivity = 0;
 let nextRareBeeAt = 18;
 let yaw = 0;
-let pitch = -0.02;
+let pitch = -0.38;
 let targetYaw = 0;
-let targetPitch = -0.02;
-let fov = 61;
-let targetFov = 61;
+let targetPitch = -0.38;
+let fov = 92;
+let targetFov = 92;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -392,7 +392,7 @@ function updateResponsive() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.35 : 1.6));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
-  targetFov = aspect < 0.72 ? 72 : aspect > 1.9 ? 54 : 61;
+  targetFov = aspect < 0.72 ? 96 : aspect > 1.9 ? 88 : 92;
   camera.fov = targetFov;
   camera.updateProjectionMatrix();
 
@@ -402,7 +402,7 @@ function updateResponsive() {
 }
 
 function updateCamera(delta) {
-  const drift = props.slowDriftEnabled ? 0.015 : 0.0018;
+  const drift = props.slowDriftEnabled ? 0.0075 : 0;
   targetYaw += delta * drift;
 
   yaw = MathUtils.lerp(yaw, targetYaw, 0.085);
@@ -509,7 +509,7 @@ function handlePointerMove(event) {
   const dx = event.clientX - pointerStartX;
   const dy = event.clientY - pointerStartY;
   targetYaw = yawStart - dx * 0.0032;
-  targetPitch = MathUtils.clamp(pitchStart + dy * 0.0028, -0.72, 0.52);
+  targetPitch = MathUtils.clamp(pitchStart + dy * 0.0028, -0.96, 0.34);
 }
 
 function endPointer(event) {
@@ -521,7 +521,7 @@ function endPointer(event) {
 
 function handleWheel(event) {
   event.preventDefault();
-  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 42, 78);
+  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 58, 104);
   lastActivity = clock.elapsedTime;
 }
 

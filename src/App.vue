@@ -62,13 +62,13 @@
     <section class="splat-orbit-panel" aria-label="Scene view controls">
       <div class="orbit-actions">
         <button class="btn orbit-toggle" type="button" @click="panoramaDriftEnabled = !panoramaDriftEnabled">
-          {{ panoramaDriftEnabled ? 'Disable slow 360 drift' : 'Enable slow 360 drift' }}
+          {{ panoramaDriftEnabled ? 'Pause automatic slow orbit' : 'Resume automatic slow orbit' }}
         </button>
         <button class="btn orbit-toggle secondary" type="button" @click="splatEnabled = !splatEnabled">
           {{ splatEnabled ? 'Hide Gaussian splat scene' : 'Show optional Gaussian splat scene' }}
         </button>
       </div>
-      <p>Drag the landscape to look around like a 360 street-view scene. The Gaussian splat stays optional and off by default.</p>
+      <p>The panorama auto-orbits slowly by default. Drag to look around manually; the optional Gaussian splat stays off unless enabled.</p>
     </section>
   </main>
 </template>
@@ -77,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260609-233500';
+const BUILD_STAMP = '20260609-234300';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -91,7 +91,7 @@ const introVideo = ref(null);
 const showIntro = ref(true);
 const rolling = ref(false);
 const installPrompt = ref(null);
-const panoramaDriftEnabled = ref(false);
+const panoramaDriftEnabled = ref(true);
 const splatEnabled = ref(false);
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
