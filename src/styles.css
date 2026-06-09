@@ -557,3 +557,48 @@ input {
     top: calc(var(--safe-top) + 0.75rem);
   }
 }
+
+/* 360 panorama pass */
+.bee-world {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  background: #ffe7ba;
+}
+
+.bee-world.is-dragging {
+  cursor: grabbing;
+}
+
+.slot-overlay,
+.intro-video,
+.controls-panel,
+.splat-orbit-panel {
+  pointer-events: auto;
+}
+
+.orbit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+  width: min(100%, 44rem);
+}
+
+.orbit-toggle.secondary {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.26), rgba(255,255,255,0)),
+    linear-gradient(135deg, #735027, #9d6c2d);
+  box-shadow: 0 0.55rem 1.5rem rgba(95, 62, 28, 0.2);
+}
+
+@media (max-width: 520px) {
+  .orbit-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .orbit-toggle {
+    width: min(100%, 22rem);
+  }
+}

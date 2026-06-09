@@ -1,7 +1,7 @@
 <template>
   <main class="app-shell">
     <section class="hero-stage">
-      <ThreeBeeScene :orbit-enabled="splatOrbitEnabled" />
+      <ThreeBeeScene :slow-drift-enabled="panoramaDriftEnabled" :splat-enabled="splatEnabled" />
 
       <video
         v-if="showIntro"
@@ -59,11 +59,16 @@
       </div>
     </section>
 
-    <section class="splat-orbit-panel" aria-label="Gaussian splat camera controls">
-      <button class="btn orbit-toggle" type="button" @click="splatOrbitEnabled = !splatOrbitEnabled">
-        {{ splatOrbitEnabled ? 'Disable slow splat orbit' : 'Enable slow splat orbit' }}
-      </button>
-      <p>Use this only when you want the ceramic Gaussian splat scene to drift around the camera very slowly.</p>
+    <section class="splat-orbit-panel" aria-label="Scene view controls">
+      <div class="orbit-actions">
+        <button class="btn orbit-toggle" type="button" @click="panoramaDriftEnabled = !panoramaDriftEnabled">
+          {{ panoramaDriftEnabled ? 'Disable slow 360 drift' : 'Enable slow 360 drift' }}
+        </button>
+        <button class="btn orbit-toggle secondary" type="button" @click="splatEnabled = !splatEnabled">
+          {{ splatEnabled ? 'Hide Gaussian splat scene' : 'Show optional Gaussian splat scene' }}
+        </button>
+      </div>
+      <p>Drag the landscape to look around like a 360 street-view scene. The Gaussian splat stays optional and off by default.</p>
     </section>
   </main>
 </template>
@@ -72,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260609-232937';
+const BUILD_STAMP = '20260609-233500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -86,7 +91,8 @@ const introVideo = ref(null);
 const showIntro = ref(true);
 const rolling = ref(false);
 const installPrompt = ref(null);
-const splatOrbitEnabled = ref(false);
+const panoramaDriftEnabled = ref(false);
+const splatEnabled = ref(false);
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
 const qs = new URLSearchParams(window.location.search);
