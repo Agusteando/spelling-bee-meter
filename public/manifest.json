@@ -1,0 +1,9 @@
+{
+  "name": "Spelling Bee 3D Meter",
+  "short_name": "Bee Meter",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fff6d6",
+  "theme_color": "#91c200",
+  "description": "Animated 3D Spelling Bee number drawing meter"
+}
