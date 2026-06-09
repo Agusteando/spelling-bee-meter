@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@sparkjsdev/spark": "2.1.0",
     "three": "0.184.0",
     "vue": "3.5.35"
   },

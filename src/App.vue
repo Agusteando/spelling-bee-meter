@@ -1,7 +1,7 @@
 <template>
   <main class="app-shell">
     <section class="hero-stage">
-      <ThreeBeeScene />
+      <ThreeBeeScene :orbit-enabled="splatOrbitEnabled" />
 
       <video
         v-if="showIntro"
@@ -58,6 +58,13 @@
         </button>
       </div>
     </section>
+
+    <section class="splat-orbit-panel" aria-label="Gaussian splat camera controls">
+      <button class="btn orbit-toggle" type="button" @click="splatOrbitEnabled = !splatOrbitEnabled">
+        {{ splatOrbitEnabled ? 'Disable slow splat orbit' : 'Enable slow splat orbit' }}
+      </button>
+      <p>Use this only when you want the ceramic Gaussian splat scene to drift around the camera very slowly.</p>
+    </section>
   </main>
 </template>
 
@@ -65,7 +72,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260609-231027';
+const BUILD_STAMP = '20260609-232008';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -80,6 +87,7 @@ const introVideo = ref(null);
 const showIntro = ref(true);
 const rolling = ref(false);
 const installPrompt = ref(null);
+const splatOrbitEnabled = ref(false);
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
 const qs = new URLSearchParams(window.location.search);

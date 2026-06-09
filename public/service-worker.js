@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spelling-bee-3d-20260609-231027';
+const CACHE_NAME = 'spelling-bee-3d-20260609-232008';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CORE_ASSETS = ['/', '/index.html', '/intro.mp4', '/manifest.json'];
 
@@ -21,8 +21,10 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+  const isLocal = url.origin === self.location.origin;
+  const isVisualAsset = url.pathname === '/' || url.pathname.endsWith('.html') || url.pathname.includes('/assets/') || url.pathname.includes('/splats/') || url.pathname.endsWith('.spz');
 
-  if (url.origin === self.location.origin && (url.pathname === '/' || url.pathname.endsWith('.html') || url.pathname.includes('/assets/'))) {
+  if (isLocal && isVisualAsset) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' })
         .then(response => response)
