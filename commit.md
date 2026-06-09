@@ -1,1 +1,1 @@
-Ajusta panorama 360 con órbita automática y vista inicial inferior
+Reconstruye el escenario panorámico con capas segmentadas, profundidad parallax y odómetro estable

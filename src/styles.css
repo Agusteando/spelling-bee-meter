@@ -87,7 +87,13 @@ input {
   position: absolute;
   inset: 0;
   z-index: 0;
-  pointer-events: none;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+
+.bee-world.is-dragging {
+  cursor: grabbing;
 }
 
 .bee-world canvas {

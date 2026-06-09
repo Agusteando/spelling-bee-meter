@@ -1,5 +1,5 @@
 <template>
-  <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Interactive 360 spelling bee landscape">
+  <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Layered parallax spelling bee landscape">
     <div v-if="splatLoading" class="splat-loading">Loading optional Gaussian splat scene…</div>
   </div>
 </template>
@@ -9,14 +9,17 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   AdditiveBlending,
   AmbientLight,
+  BackSide,
   Box3,
   BufferGeometry,
   Clock,
   Color,
+  CylinderGeometry,
   DirectionalLight,
   Float32BufferAttribute,
   Group,
   HemisphereLight,
+  LinearFilter,
   MathUtils,
   Mesh,
   MeshBasicMaterial,
@@ -24,7 +27,6 @@ import {
   Points,
   Scene,
   ShaderMaterial,
-  SphereGeometry,
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
@@ -40,7 +42,7 @@ import beeRightUrl from '../assets/spelling/bee_right.png';
 const props = defineProps({
   slowDriftEnabled: {
     type: Boolean,
-    default: false
+    default: true
   },
   splatEnabled: {
     type: Boolean,
@@ -48,12 +50,65 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260609-234300';
-const PANO_URL = `/panoramas/spelling-hills-pano-4096.webp?v=${BUILD_STAMP}`;
-const PANO_FALLBACK_URL = `/panoramas/spelling-hills-pano-4096.jpg?v=${BUILD_STAMP}`;
+const BUILD_STAMP = '20260609-235400';
+const LAYER_ASPECT = 1774 / 887;
+const LAYER_BASE = `/panoramas/segmented`;
 const SPLAT_URL = `/splats/ceramic_500k.spz?v=${BUILD_STAMP}`;
 const DETAIL_FOCUS = new Vector3(-2.1509, 0.7566, 0.8363);
 const DETAIL_ROBUST_SPAN = 102.1;
+
+const PANORAMA_LAYERS = [
+  {
+    name: 'sky-patterns',
+    url: `${LAYER_BASE}/sky-patterns.png?v=${BUILD_STAMP}`,
+    radius: 58,
+    verticalOffset: 0.0,
+    opacity: 0.96,
+    parallax: -0.012,
+    breathe: 0.006,
+    renderOrder: 1
+  },
+  {
+    name: 'mountain-lake',
+    url: `${LAYER_BASE}/mountain-lake.png?v=${BUILD_STAMP}`,
+    radius: 42,
+    verticalOffset: -0.65,
+    opacity: 0.98,
+    parallax: 0.012,
+    breathe: 0.01,
+    renderOrder: 2
+  },
+  {
+    name: 'hills-path',
+    url: `${LAYER_BASE}/hills-path.png?v=${BUILD_STAMP}`,
+    radius: 31,
+    verticalOffset: -0.78,
+    opacity: 1,
+    parallax: 0.032,
+    breathe: 0.014,
+    renderOrder: 3
+  },
+  {
+    name: 'hills-left',
+    url: `${LAYER_BASE}/hills-left.png?v=${BUILD_STAMP}`,
+    radius: 24,
+    verticalOffset: -0.68,
+    opacity: 1,
+    parallax: 0.052,
+    breathe: 0.018,
+    renderOrder: 4
+  },
+  {
+    name: 'foreground-flowers',
+    url: `${LAYER_BASE}/foreground-flowers.png?v=${BUILD_STAMP}`,
+    radius: 18,
+    verticalOffset: -0.52,
+    opacity: 1,
+    parallax: 0.084,
+    breathe: 0.028,
+    renderOrder: 5
+  }
+];
 
 const mount = ref(null);
 const dragging = ref(false);
@@ -68,7 +123,7 @@ let frameHandle;
 let disposed = false;
 let viewWidth = 1;
 let viewHeight = 1;
-let panoSphere;
+let panoramaRoot;
 let particleSystem;
 let beeRoot;
 let rareBee;
@@ -77,12 +132,12 @@ let splatMesh;
 let splatRequested = false;
 let lastActivity = 0;
 let nextRareBeeAt = 18;
-let yaw = 0;
-let pitch = -0.38;
-let targetYaw = 0;
-let targetPitch = -0.38;
-let fov = 92;
-let targetFov = 92;
+let yaw = -0.03;
+let pitch = -0.58;
+let targetYaw = -0.03;
+let targetPitch = -0.58;
+let fov = 112;
+let targetFov = 112;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -95,6 +150,7 @@ const loader = new TextureLoader();
 const cleanup = [];
 const animated = [];
 const uniforms = [];
+const panoramaLayers = [];
 
 function registerDisposable(item) {
   cleanup.push(() => item?.dispose?.());
@@ -115,6 +171,8 @@ function loadTexture(url, onLoad, onError) {
   const texture = loader.load(url, (loaded) => {
     loaded.colorSpace = SRGBColorSpace;
     loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    loaded.minFilter = LinearFilter;
+    loaded.magFilter = LinearFilter;
     loaded.needsUpdate = true;
     onLoad?.(loaded);
   }, undefined, onError);
@@ -123,25 +181,48 @@ function loadTexture(url, onLoad, onError) {
   return texture;
 }
 
-function createPanoramaSphere() {
-  const geometry = registerDisposable(new SphereGeometry(60, 96, 48));
-  // Invert the sphere so the camera sits inside a panoramic surface.
-  geometry.scale(-1, 1, 1);
+function createPanoramaLayer(config) {
+  const height = (Math.PI * 2 * config.radius) / LAYER_ASPECT;
+  const geometry = registerDisposable(new CylinderGeometry(config.radius, config.radius, height, 192, 1, true));
+  // Render the texture from inside the cylinder without mirroring the artwork.
+  const material = registerDisposable(new MeshBasicMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity: config.opacity,
+    alphaTest: 0.015,
+    depthWrite: false,
+    depthTest: false,
+    side: BackSide
+  }));
 
-  const material = registerDisposable(new MeshBasicMaterial({ color: '#fce6b6' }));
-  panoSphere = new Mesh(geometry, material);
-  panoSphere.rotation.y = Math.PI;
-  scene.add(panoSphere);
-
-  const applyTexture = (texture) => {
-    material.map = texture;
-    material.color.set('#ffffff');
-    material.needsUpdate = true;
+  const mesh = new Mesh(geometry, material);
+  mesh.name = `panorama-layer-${config.name}`;
+  mesh.renderOrder = config.renderOrder;
+  mesh.position.y = config.verticalOffset;
+  mesh.rotation.y = Math.PI;
+  mesh.userData = {
+    baseRotationY: Math.PI,
+    baseY: config.verticalOffset,
+    parallax: config.parallax,
+    breathe: config.breathe,
+    radius: config.radius
   };
 
-  loadTexture(PANO_URL, applyTexture, () => {
-    loadTexture(PANO_FALLBACK_URL, applyTexture);
+  loadTexture(config.url, (texture) => {
+    material.map = texture;
+    material.needsUpdate = true;
   });
+
+  panoramaRoot.add(mesh);
+  panoramaLayers.push(mesh);
+  return mesh;
+}
+
+function createLayeredPanorama() {
+  panoramaRoot = new Group();
+  panoramaRoot.name = 'segmented-parallax-panorama';
+  scene.add(panoramaRoot);
+  PANORAMA_LAYERS.forEach(createPanoramaLayer);
 }
 
 function createParticleMaterial() {
@@ -156,6 +237,7 @@ function createParticleMaterial() {
     uniforms: matUniforms,
     transparent: true,
     depthWrite: false,
+    depthTest: false,
     blending: AdditiveBlending,
     vertexColors: true,
     vertexShader: `
@@ -170,16 +252,16 @@ function createParticleMaterial() {
       void main() {
         vColor = color;
         vec3 p = position;
-        float wave = sin(uTime * (0.22 + aDrift * 0.18) + aPhase);
-        float curl = cos(uTime * (0.17 + aDrift * 0.12) + aPhase * 1.7);
-        p.x += wave * 0.14 * aDrift;
-        p.y += curl * 0.10 * aDrift + sin(uTime * 0.08 + aPhase) * 0.035;
-        p.z += sin(uTime * 0.11 + aPhase * 0.71) * 0.16 * aDrift;
+        float wave = sin(uTime * (0.18 + aDrift * 0.12) + aPhase);
+        float curl = cos(uTime * (0.14 + aDrift * 0.11) + aPhase * 1.7);
+        p.x += wave * 0.20 * aDrift;
+        p.y += curl * 0.12 * aDrift + sin(uTime * 0.08 + aPhase) * 0.06;
+        p.z += sin(uTime * 0.10 + aPhase * 0.71) * 0.18 * aDrift;
 
         vec4 mvPosition = modelViewMatrix * vec4(p, 1.0);
-        float depthScale = clamp(22.0 / max(1.0, -mvPosition.z), 0.34, 2.8);
+        float depthScale = clamp(26.0 / max(1.0, -mvPosition.z), 0.34, 3.2);
         gl_PointSize = aSize * depthScale * uPixelRatio;
-        vAlpha = clamp(depthScale * 0.48, 0.18, 0.92);
+        vAlpha = clamp(depthScale * 0.42, 0.16, 0.88);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
@@ -193,9 +275,9 @@ function createParticleMaterial() {
       void main() {
         vec2 p = gl_PointCoord - 0.5;
         float d = length(p);
-        float core = smoothstep(0.5, 0.0, d);
-        float halo = smoothstep(0.5, 0.08, d) * 0.45;
-        float flicker = 0.78 + 0.22 * sin(uTime * 1.8 + vColor.r * 7.0 + vColor.g * 3.0);
+        float core = smoothstep(0.50, 0.0, d);
+        float halo = smoothstep(0.50, 0.08, d) * 0.52;
+        float flicker = 0.80 + 0.20 * sin(uTime * 1.55 + vColor.r * 7.0 + vColor.g * 3.0);
         float alpha = (core + halo) * vAlpha * flicker * uOpacity;
         gl_FragColor = vec4(vColor, alpha);
       }
@@ -229,25 +311,25 @@ function createParticlePoints() {
     drifts.push(drift);
   };
 
-  for (let i = 0; i < 420; i += 1) {
+  for (let i = 0; i < 560; i += 1) {
     addPoint({
-      radius: MathUtils.randFloat(4, 24),
-      theta: MathUtils.randFloat(0.62, 1.76),
+      radius: MathUtils.randFloat(4.5, 20),
+      theta: MathUtils.randFloat(0.86, 1.92),
       phi: MathUtils.randFloat(-Math.PI, Math.PI),
-      color: [1.0, MathUtils.randFloat(0.78, 0.95), MathUtils.randFloat(0.26, 0.58)],
-      size: MathUtils.randFloat(2.2, 6.8),
-      drift: MathUtils.randFloat(0.4, 1.35)
+      color: [1.0, MathUtils.randFloat(0.76, 0.94), MathUtils.randFloat(0.20, 0.58)],
+      size: MathUtils.randFloat(1.8, 5.8),
+      drift: MathUtils.randFloat(0.35, 1.25)
     });
   }
 
-  for (let i = 0; i < 18; i += 1) {
+  for (let i = 0; i < 24; i += 1) {
     addPoint({
-      radius: MathUtils.randFloat(5.5, 15),
-      theta: MathUtils.randFloat(0.76, 1.42),
+      radius: MathUtils.randFloat(5.5, 13),
+      theta: MathUtils.randFloat(0.95, 1.62),
       phi: MathUtils.randFloat(-Math.PI, Math.PI),
-      color: [MathUtils.randFloat(0.52, 0.78), MathUtils.randFloat(0.9, 1.0), 1.0],
-      size: MathUtils.randFloat(15, 34),
-      drift: MathUtils.randFloat(0.75, 1.6)
+      color: [MathUtils.randFloat(0.48, 0.74), MathUtils.randFloat(0.9, 1.0), 1.0],
+      size: MathUtils.randFloat(13, 30),
+      drift: MathUtils.randFloat(0.7, 1.5)
     });
   }
 
@@ -258,9 +340,10 @@ function createParticlePoints() {
   geometry.setAttribute('aPhase', new Float32BufferAttribute(phases, 1));
   geometry.setAttribute('aDrift', new Float32BufferAttribute(drifts, 1));
 
-  const points = new Points(geometry, createParticleMaterial());
-  scene.add(points);
-  animated.push({ type: 'particles', object: points });
+  particleSystem = new Points(geometry, createParticleMaterial());
+  particleSystem.renderOrder = 10;
+  scene.add(particleSystem);
+  animated.push({ type: 'particles', object: particleSystem });
 }
 
 function setBeeDirection(sprite, direction) {
@@ -272,7 +355,7 @@ function setBeeDirection(sprite, direction) {
   sprite.material.needsUpdate = true;
 }
 
-function createBee({ direction = 'right', height = 0.52, rare = false, radius = 6.4, theta = 1.22, phi = -0.7 }) {
+function createBee({ direction = 'right', height = 0.52, rare = false, radius = 8.2, theta = 1.22, phi = -0.7 }) {
   let sprite;
   const left = loadTexture(`${beeLeftUrl}?asset=left&v=${BUILD_STAMP}`, () => sprite && setBeeDirection(sprite, direction));
   const right = loadTexture(`${beeRightUrl}?asset=right&v=${BUILD_STAMP}`, () => sprite && setBeeDirection(sprite, direction));
@@ -280,9 +363,11 @@ function createBee({ direction = 'right', height = 0.52, rare = false, radius = 
     map: direction === 'left' ? left : right,
     transparent: true,
     opacity: 0.94,
-    depthWrite: false
+    depthWrite: false,
+    depthTest: false
   }));
   sprite = new Sprite(material);
+  sprite.renderOrder = rare ? 13 : 12;
   sprite.userData = { leftTexture: left, rightTexture: right, height, radius, theta, phi, active: false, lastX: 0 };
   sprite.position.copy(sphericalToWorld(radius, theta, phi));
   setBeeDirection(sprite, direction);
@@ -294,8 +379,8 @@ function createBee({ direction = 'right', height = 0.52, rare = false, radius = 
 function createBees() {
   beeRoot = new Group();
   scene.add(beeRoot);
-  createBee({ direction: 'right', height: 0.5, radius: 7.6, theta: 1.05, phi: -0.92 });
-  createBee({ direction: 'left', height: 0.46, radius: 8.2, theta: 0.98, phi: 0.9 });
+  createBee({ direction: 'right', height: 0.5, radius: 8.8, theta: 1.05, phi: -0.92 });
+  createBee({ direction: 'left', height: 0.46, radius: 9.4, theta: 0.98, phi: 0.9 });
   rareBee = createBee({ direction: 'right', height: 0.44, rare: true, radius: 7.2, theta: 1.18, phi: -1.6 });
   rareBee.visible = false;
 }
@@ -342,31 +427,30 @@ function fitSplatLayer() {
     -transformedFocus.y * scale - 0.62,
     -7.2 - transformedFocus.z * scale
   );
-  if (box && !box.isEmpty()) {
-    splatRoot.userData.box = box;
-  }
+  if (box && !box.isEmpty()) splatRoot.userData.box = box;
 }
 
 function updateSplatVisibility() {
   ensureSplat();
   if (splatRoot) splatRoot.visible = props.splatEnabled;
   if (!props.splatEnabled) splatLoading.value = false;
+  if (panoramaRoot) panoramaRoot.visible = !props.splatEnabled;
 }
 
 function createScene() {
   scene = new Scene();
-  scene.background = new Color('#ffe6b4');
+  scene.background = new Color('#fff0c8');
 
-  camera = new PerspectiveCamera(fov, 1, 0.03, 180);
-  camera.position.set(0, 0, 0);
+  camera = new PerspectiveCamera(fov, 1, 0.03, 220);
+  camera.position.set(0, -0.24, 0.2);
 
-  scene.add(new HemisphereLight('#fff3cf', '#7d6135', 1.05));
+  scene.add(new HemisphereLight('#fff5d9', '#7d6135', 1.05));
   scene.add(new AmbientLight('#fff3d5', 0.8));
-  const key = new DirectionalLight('#ffffff', 1.2);
+  const key = new DirectionalLight('#ffffff', 1.16);
   key.position.set(-3, 4, 6);
   scene.add(key);
 
-  createPanoramaSphere();
+  createLayeredPanorama();
   createParticlePoints();
   createBees();
 
@@ -389,10 +473,10 @@ function updateResponsive() {
   viewHeight = Math.max(320, rect.height || window.innerHeight);
   const aspect = viewWidth / Math.max(viewHeight, 1);
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.35 : 1.6));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.3 : 1.55));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
-  targetFov = aspect < 0.72 ? 96 : aspect > 1.9 ? 88 : 92;
+  targetFov = aspect < 0.72 ? 116 : aspect > 1.9 ? 106 : 112;
   camera.fov = targetFov;
   camera.updateProjectionMatrix();
 
@@ -401,8 +485,8 @@ function updateResponsive() {
   });
 }
 
-function updateCamera(delta) {
-  const drift = props.slowDriftEnabled ? 0.0075 : 0;
+function updateCamera(delta, elapsed) {
+  const drift = props.slowDriftEnabled ? 0.0032 : 0;
   targetYaw += delta * drift;
 
   yaw = MathUtils.lerp(yaw, targetYaw, 0.085);
@@ -411,12 +495,25 @@ function updateCamera(delta) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
+  const orbitOffset = props.slowDriftEnabled ? 0.24 : 0.08;
+  camera.position.set(
+    Math.sin(yaw * 0.54) * orbitOffset,
+    -0.30 + Math.sin(elapsed * 0.08) * 0.015,
+    Math.cos(yaw * 0.48) * orbitOffset
+  );
+
   const direction = new Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
     -Math.cos(yaw) * Math.cos(pitch)
   );
-  camera.lookAt(direction);
+  camera.lookAt(camera.position.clone().add(direction));
+
+  panoramaLayers.forEach((layer) => {
+    const data = layer.userData;
+    layer.rotation.y = data.baseRotationY + yaw * data.parallax + Math.sin(elapsed * 0.045 + data.radius) * data.breathe;
+    layer.position.y = data.baseY + Math.sin(elapsed * 0.035 + data.radius * 0.17) * data.breathe * 0.25;
+  });
 }
 
 function scheduleRareBee(now) {
@@ -445,12 +542,12 @@ function animate() {
     if (u.uTime) u.uTime.value = elapsed;
   });
 
-  updateCamera(delta);
+  updateCamera(delta, elapsed);
 
   for (const item of animated) {
     if (item.type === 'particles') {
-      item.object.rotation.y = elapsed * 0.006;
-      item.object.rotation.x = Math.sin(elapsed * 0.07) * 0.008;
+      item.object.rotation.y = elapsed * 0.004;
+      item.object.rotation.x = Math.sin(elapsed * 0.07) * 0.006;
     }
 
     if (item.type === 'bee') {
@@ -509,7 +606,7 @@ function handlePointerMove(event) {
   const dx = event.clientX - pointerStartX;
   const dy = event.clientY - pointerStartY;
   targetYaw = yawStart - dx * 0.0032;
-  targetPitch = MathUtils.clamp(pitchStart + dy * 0.0028, -0.96, 0.34);
+  targetPitch = MathUtils.clamp(pitchStart + dy * 0.0028, -1.03, 0.22);
 }
 
 function endPointer(event) {
@@ -521,7 +618,7 @@ function endPointer(event) {
 
 function handleWheel(event) {
   event.preventDefault();
-  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 58, 104);
+  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 70, 118);
   lastActivity = clock.elapsedTime;
 }
 
@@ -540,7 +637,7 @@ onMounted(() => {
   disposed = false;
   renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.setClearColor(0xffe6b4, 1);
+  renderer.setClearColor(0xfff0c8, 1);
   mount.value.appendChild(renderer.domElement);
 
   createScene();

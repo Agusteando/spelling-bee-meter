@@ -77,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260609-234300';
+const BUILD_STAMP = '20260609-235400';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -237,26 +237,23 @@ async function spinTo(value) {
   setSpinTimeCss();
   await nextTick();
 
-  const startDigits = currentDigits.length === state.value.digits ? currentDigits : pad(displayedValue).split('').map(Number);
   const targetDigits = pad(value).split('').map(Number);
   const durationMs = Math.max(700, spinInput.value * 1000);
 
   await Promise.all(columns.map(async (column, index) => {
-    const startDigit = startDigits[index] ?? 0;
     const targetDigit = targetDigits[index] ?? 0;
     const loops = REEL_LOOPS + index;
     const endRow = loops * 10 + targetDigit;
     const localDuration = durationMs + index * 120;
 
-    setColumnRow(column, startDigit);
-    // Flush the normalized starting transform before applying the animated transform.
-    column.offsetHeight;
+    // Match the original project behavior: do not reset the visible reel before spinning.
+    // The column is already parked on the current digit; we only transition to a far
+    // repeated row of the target digit, then invisibly park it back on that same digit.
     column.style.transition = `transform ${localDuration}ms cubic-bezier(.32,.02,.19,1)`;
     column.style.transform = transformForRow(endRow);
 
     await waitForTransformEnd(column, localDuration);
 
-    // Same visible digit, lower row. The reset is hidden because the strip repeats 0-9.
     setColumnRow(column, targetDigit);
   }));
 
