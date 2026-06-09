@@ -120,6 +120,7 @@ function loadState() {
 }
 
 const state = ref(loadState());
+let displayedValue = state.value.drawn.at(-1) ?? 0;
 const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 let digitHeight = 0;
@@ -140,14 +141,14 @@ function measureDigit() {
 }
 
 function lastDisplayedValue() {
-  return state.value.drawn.at(-1) ?? 0;
+  return displayedValue;
 }
 
 function setColumnToDigit(column, digit) {
   column.dataset.digit = String(digit);
   column.style.transition = 'none';
   column.style.transitionDelay = '0ms';
-  column.style.transform = `translate3d(0, ${-digit * digitHeight}px, 0)`;
+  column.style.transform = `translateY(${-digit * digitHeight}px)`;
 }
 
 function resetReelColumns(value = lastDisplayedValue()) {
@@ -171,6 +172,7 @@ function setSpinTimeCss() {
 }
 
 async function spinTo(value) {
+  const startValue = displayedValue;
   rolling.value = true;
   setSpinTimeCss();
   await nextTick();
@@ -188,13 +190,13 @@ async function spinTo(value) {
 
   await Promise.all(columns.map((column, index) => new Promise(resolve => {
     const targetDigit = digits[index] ?? 0;
-    const startDigit = Number(column.dataset.digit ?? pad(lastDisplayedValue())[index] ?? 0);
+    const startDigit = Number(pad(startValue)[index] ?? 0);
     const loops = REEL_LOOPS + index;
     const endOffset = loops * 10 + targetDigit;
 
     column.style.transition = 'none';
     column.style.transitionDelay = '0ms';
-    column.style.transform = `translate3d(0, ${-startDigit * digitHeight}px, 0)`;
+    column.style.transform = `translateY(${-startDigit * digitHeight}px)`;
     column.getBoundingClientRect();
 
     let fallbackTimer;
@@ -214,11 +216,12 @@ async function spinTo(value) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         column.style.transition = `transform ${durationMs}ms cubic-bezier(.32,.02,.19,1)`;
-        column.style.transform = `translate3d(0, ${-endOffset * digitHeight}px, 0)`;
+        column.style.transform = `translateY(${-endOffset * digitHeight}px)`;
       });
     });
   })));
 
+  displayedValue = value;
   rolling.value = false;
 }
 
@@ -230,6 +233,7 @@ async function draw() {
     state.value = fresh(state.value.max);
     await nextTick();
     measureDigit();
+    displayedValue = 0;
     resetReelColumns(0);
   }
 
@@ -247,6 +251,7 @@ async function resetList() {
   saveState();
   await nextTick();
   measureDigit();
+  displayedValue = 0;
   resetReelColumns(0);
 }
 

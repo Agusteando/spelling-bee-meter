@@ -1,1 +1,1 @@
-Mejora responsividad total y reemplaza el odómetro por un reel fluido basado en el comportamiento original
+Reimagina el escenario Spelling Bee como una experiencia 3D procedural con odómetro de carrete estable
