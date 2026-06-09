@@ -69,9 +69,8 @@ const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const REEL_SETS = 18;
-const CANONICAL_SET = 6;
-const MIN_SPIN_SETS = 7;
+const REEL_LOOPS = 4;
+const EXTRA_REEL_SETS = 3;
 const INTRO_TOTAL_MS = 8000;
 const INTRO_FADE_MS = 2000;
 
@@ -124,9 +123,9 @@ const state = ref(loadState());
 const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 let digitHeight = 0;
-let reelOffsets = [];
+let resizeFrame = 0;
 
-const reelDigits = computed(() => Array.from({ length: REEL_SETS * 10 }, (_, index) => index % 10));
+const reelDigits = computed(() => Array.from({ length: (REEL_LOOPS + state.value.digits + EXTRA_REEL_SETS) * 10 }, (_, index) => index % 10));
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
 
@@ -144,26 +143,18 @@ function lastDisplayedValue() {
   return state.value.drawn.at(-1) ?? 0;
 }
 
-function setColumnOffset(column, index, offset, animated = false) {
-  column.dataset.offset = String(offset);
-  reelOffsets[index] = offset;
-  column.style.transition = animated
-    ? column.style.transition
-    : 'none';
-  column.style.transform = `translate3d(0, ${-offset * digitHeight}px, 0)`;
-}
-
-function canonicalOffsetForDigit(digit) {
-  return CANONICAL_SET * 10 + digit;
+function setColumnToDigit(column, digit) {
+  column.dataset.digit = String(digit);
+  column.style.transition = 'none';
+  column.style.transitionDelay = '0ms';
+  column.style.transform = `translate3d(0, ${-digit * digitHeight}px, 0)`;
 }
 
 function resetReelColumns(value = lastDisplayedValue()) {
   const digits = pad(value).split('').map(Number);
   reelsRoot.value?.querySelectorAll('.numbers').forEach((column, index) => {
     const digit = digits[index] ?? 0;
-    column.style.transition = 'none';
-    column.style.transitionDelay = '0ms';
-    setColumnOffset(column, index, canonicalOffsetForDigit(digit));
+    setColumnToDigit(column, digit);
   });
 }
 
@@ -193,36 +184,38 @@ async function spinTo(value) {
     return;
   }
 
+  const durationMs = Math.max(650, spinInput.value * 1000);
+
   await Promise.all(columns.map((column, index) => new Promise(resolve => {
     const targetDigit = digits[index] ?? 0;
-    const currentOffset = Number(column.dataset.offset || reelOffsets[index] || canonicalOffsetForDigit(0));
-    const currentDigit = ((currentOffset % 10) + 10) % 10;
-    const forwardDelta = (targetDigit - currentDigit + 10) % 10;
-    const travel = (MIN_SPIN_SETS + index) * 10 + forwardDelta;
-    const targetOffset = currentOffset + travel;
-    const canonicalOffset = canonicalOffsetForDigit(targetDigit);
-    const durationMs = Math.max(650, spinInput.value * 1000 + index * 160);
+    const startDigit = Number(column.dataset.digit ?? pad(lastDisplayedValue())[index] ?? 0);
+    const loops = REEL_LOOPS + index;
+    const endOffset = loops * 10 + targetDigit;
 
     column.style.transition = 'none';
     column.style.transitionDelay = '0ms';
-    column.style.transform = `translate3d(0, ${-currentOffset * digitHeight}px, 0)`;
+    column.style.transform = `translate3d(0, ${-startDigit * digitHeight}px, 0)`;
     column.getBoundingClientRect();
 
     let fallbackTimer;
+    let finished = false;
     const finish = () => {
+      if (finished) return;
+      finished = true;
       window.clearTimeout(fallbackTimer);
       column.removeEventListener('transitionend', finish);
-      column.style.transition = 'none';
-      column.style.transitionDelay = '0ms';
-      setColumnOffset(column, index, canonicalOffset);
+      setColumnToDigit(column, targetDigit);
       resolve();
     };
 
     column.addEventListener('transitionend', finish, { once: true });
-    fallbackTimer = window.setTimeout(finish, durationMs + 420);
+    fallbackTimer = window.setTimeout(finish, durationMs + 520);
+
     requestAnimationFrame(() => {
-      column.style.transition = `transform ${durationMs}ms cubic-bezier(.13,.78,.15,1)`;
-      setColumnOffset(column, index, targetOffset, true);
+      requestAnimationFrame(() => {
+        column.style.transition = `transform ${durationMs}ms cubic-bezier(.32,.02,.19,1)`;
+        column.style.transform = `translate3d(0, ${-endOffset * digitHeight}px, 0)`;
+      });
     });
   })));
 
@@ -297,9 +290,13 @@ function handleKeydown(event) {
 }
 
 function handleMeterResize() {
-  if (rolling.value) return;
-  measureDigit();
-  resetReelColumns();
+  if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = 0;
+    if (rolling.value) return;
+    measureDigit();
+    resetReelColumns();
+  });
 }
 
 function installApp() {
@@ -332,5 +329,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown);
   window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
 });
 </script>

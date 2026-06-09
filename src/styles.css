@@ -6,7 +6,8 @@
 
 :root {
   --spin-time: 5s;
-  --digit-size: clamp(3.45rem, min(9.2vw, 14.5dvh), 8.7rem);
+  --digit-size: clamp(3rem, min(8.4vw, 12.8dvh), 7.8rem);
+  --reel-step: calc(var(--digit-size) * 1.25);
   --ink: #3f2a16;
   --honey: #f8c247;
   --leaf: #91c200;
@@ -15,20 +16,23 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --stage-pad-x: clamp(0.5rem, 2.2vw, 1.4rem);
-  --stage-pad-top: calc(clamp(0.45rem, 1.6dvh, 1.2rem) + var(--safe-top));
-  --stage-pad-bottom: calc(clamp(2.8rem, 7.2dvh, 4.6rem) + var(--safe-bottom));
-  --footer-bar-height: clamp(0.28rem, 0.9dvh, 0.62rem);
+  --stage-pad-top: calc(clamp(0.35rem, 1.25dvh, 0.95rem) + var(--safe-top));
+  --stage-pad-bottom: calc(clamp(1.35rem, 4.6dvh, 3.35rem) + var(--safe-bottom));
+  --slot-shift-y: clamp(-1.35rem, -2.4dvh, -0.36rem);
+  --footer-bar-height: clamp(0.24rem, 0.7dvh, 0.5rem);
 }
 
 html,
 body,
 #app {
   min-height: 100%;
+  width: 100%;
 }
 
 body {
   margin: 0;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
   font-family: 'Montserrat', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ink);
   background:
@@ -43,13 +47,13 @@ input {
 
 .app-shell {
   min-height: 100dvh;
+  overflow-x: clip;
 }
 
 .hero-stage {
   position: relative;
-  height: 100svh;
   min-height: 100svh;
-  max-height: 100dvh;
+  height: 100dvh;
   overflow: hidden;
   isolation: isolate;
   display: grid;
@@ -71,7 +75,7 @@ input {
 .hero-stage::after {
   content: '';
   position: absolute;
-  inset: calc(var(--stage-pad-top) + 2.6rem) 8.5vw calc(var(--stage-pad-bottom) + 1.05rem);
+  inset: calc(var(--stage-pad-top) + clamp(1.25rem, 3.2dvh, 2.6rem)) clamp(0.8rem, 8.5vw, 9rem) calc(var(--stage-pad-bottom) + clamp(0.8rem, 2.4dvh, 1.05rem));
   z-index: -1;
   border-radius: 2.4rem;
   background: rgba(255, 255, 220, 0.18);
@@ -109,13 +113,15 @@ input {
   display: grid;
   justify-items: center;
   gap: clamp(0.32rem, 1.05dvh, 0.68rem);
-  max-width: min(92vw, 42rem);
-  transform: translateY(clamp(-0.55rem, -1.1dvh, -0.08rem));
+  width: min(92vw, 42rem);
+  max-width: 100%;
+  transform: translateY(var(--slot-shift-y));
 }
 
 .reel-wrap {
   display: flex;
   gap: 0.08em;
+  width: fit-content;
   max-width: min(92vw, 100%);
   padding: 0.2em 0.28em 0.18em;
   cursor: pointer;
@@ -145,8 +151,8 @@ input {
 
 .reel {
   position: relative;
-  width: var(--digit-size);
-  height: calc(var(--digit-size) * 1.27);
+  width: calc(var(--digit-size) * 0.92);
+  height: var(--reel-step);
   overflow: hidden;
   border-radius: 0.26em;
   perspective: 900px;
@@ -185,7 +191,7 @@ input {
   font-family: 'Fredoka', 'Fredoka One', system-ui, sans-serif;
   font-size: var(--digit-size);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1;
   color: #fff8dc;
   text-shadow:
     0 0.04em 0 #24180e,
@@ -203,8 +209,8 @@ input {
   display: grid;
   place-items: center;
   width: 100%;
-  height: calc(var(--digit-size) * 1.25);
-  flex: 0 0 calc(var(--digit-size) * 1.25);
+  height: var(--reel-step);
+  flex: 0 0 var(--reel-step);
 }
 
 .draw-hint {
@@ -370,19 +376,20 @@ input {
 
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(2.95rem, min(17vw, 13.2dvh), 6.35rem);
-    --stage-pad-x: clamp(0.4rem, 3.5vw, 1rem);
-    --stage-pad-top: calc(clamp(0.35rem, 1.2dvh, 0.9rem) + var(--safe-top));
-    --stage-pad-bottom: calc(clamp(3.15rem, 8.2dvh, 4.8rem) + var(--safe-bottom));
+    --digit-size: clamp(2.45rem, min(15.2vw, 10.8dvh), 5.75rem);
+    --stage-pad-x: clamp(0.35rem, 3vw, 0.9rem);
+    --stage-pad-top: calc(clamp(0.28rem, 1dvh, 0.72rem) + var(--safe-top));
+    --stage-pad-bottom: calc(clamp(1.15rem, 4.2dvh, 3rem) + var(--safe-bottom));
+    --slot-shift-y: clamp(-1rem, -1.6dvh, -0.18rem);
   }
 
   .hero-stage::after {
-    inset: calc(var(--stage-pad-top) + 2.1rem) 0.65rem calc(var(--stage-pad-bottom) + 1.1rem);
+    inset: calc(var(--stage-pad-top) + 1.25rem) 0.65rem calc(var(--stage-pad-bottom) + 0.75rem);
     border-radius: 1.6rem;
   }
 
   .slot-overlay {
-    transform: translateY(clamp(-0.7rem, -1.2dvh, 0rem));
+    gap: clamp(0.24rem, 0.75dvh, 0.46rem);
   }
 
   .primary-card {
@@ -396,9 +403,10 @@ input {
 
 @media (max-height: 620px) {
   :root {
-    --digit-size: clamp(2.45rem, min(11vw, 11.5dvh), 5.15rem);
-    --stage-pad-top: calc(0.35rem + var(--safe-top));
-    --stage-pad-bottom: calc(2.5rem + var(--safe-bottom));
+    --digit-size: clamp(2.05rem, min(10vw, 9.2dvh), 4.45rem);
+    --stage-pad-top: calc(0.28rem + var(--safe-top));
+    --stage-pad-bottom: calc(1.05rem + var(--safe-bottom));
+    --slot-shift-y: -0.2rem;
   }
 
   .draw-hint {
@@ -406,8 +414,38 @@ input {
   }
 
   .slot-overlay {
-    gap: 0.3rem;
-    transform: translateY(-0.35rem);
+    gap: 0.22rem;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --digit-size: clamp(2.18rem, 14.2vw, 4.25rem);
+    --slot-shift-y: clamp(-0.68rem, -1.2dvh, -0.12rem);
+  }
+
+  .reel-wrap {
+    padding: 0.16em 0.2em 0.15em;
+    border-radius: 0.78rem;
+  }
+
+  .draw-hint {
+    max-width: 84vw;
+    padding: 0.38rem 0.62rem;
+    font-size: clamp(0.62rem, 2.6vw, 0.74rem);
+    text-align: center;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  :root {
+    --digit-size: clamp(1.9rem, min(7.2vw, 10.8dvh), 3.7rem);
+    --stage-pad-bottom: calc(0.72rem + var(--safe-bottom));
+    --slot-shift-y: 0rem;
+  }
+
+  .hero-stage::after {
+    inset: calc(var(--stage-pad-top) + 0.55rem) clamp(1.2rem, 14vw, 9rem) calc(var(--stage-pad-bottom) + 0.45rem);
   }
 }
 

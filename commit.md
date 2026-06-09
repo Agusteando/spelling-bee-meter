@@ -1,1 +1,1 @@
-Reconstruye la escena 3D del Spelling Bee con fondo animado, flores danzantes y odómetro continuo
+Mejora responsividad total y reemplaza el odómetro por un reel fluido basado en el comportamiento original

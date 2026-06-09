@@ -899,24 +899,47 @@ function animate(time = 0) {
   frameId = requestAnimationFrame(animate);
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
 function resize() {
   if (!mount.value || !renderer || !camera) return;
   const { width, height } = mount.value.getBoundingClientRect();
+  const safeWidth = Math.max(width, 1);
   const safeHeight = Math.max(height, 1);
-  const aspect = width / safeHeight;
-  const shortViewport = Math.max(0, Math.min(1, (680 - safeHeight) / 280));
-  const narrowViewport = Math.max(0, Math.min(1, (0.9 - aspect) / 0.38));
-  const ultrawide = Math.max(0, Math.min(1, (aspect - 1.9) / 0.8));
+  const aspect = safeWidth / safeHeight;
+  const shortViewport = clamp01((640 - safeHeight) / 260);
+  const narrowViewport = clamp01((0.88 - aspect) / 0.42);
+  const tabletPortrait = clamp01((1.12 - aspect) / 0.34) * (1 - narrowViewport * 0.45);
+  const landscapeShort = aspect > 1.45 && safeHeight < 560 ? 1 : 0;
+  const ultrawide = clamp01((aspect - 2.05) / 0.85);
 
-  renderer.setSize(width, safeHeight, false);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, safeWidth < 520 ? 1.55 : 2));
+  renderer.setSize(Math.floor(safeWidth), Math.floor(safeHeight), false);
+
+  const fov = 41.8 + shortViewport * 3.8 + narrowViewport * 2.8 + landscapeShort * 2.2;
+  const vFov = (fov * Math.PI) / 180;
+  const viewHeightTarget = 6.35 + shortViewport * 0.35 - narrowViewport * 0.35 + landscapeShort * 0.55;
+  const viewWidthTarget = aspect < 0.62
+    ? 5.05
+    : aspect < 0.9
+      ? 6.7
+      : aspect < 1.25
+        ? 9.15
+        : 12.95 - ultrawide * 0.75;
+  const zForHeight = viewHeightTarget / (2 * Math.tan(vFov / 2));
+  const zForWidth = viewWidthTarget / (2 * aspect * Math.tan(vFov / 2));
+  const cameraZ = Math.max(zForHeight, zForWidth) + 0.22;
+
   camera.aspect = aspect;
-  camera.position.z = 11.45 + shortViewport * 1.35 + narrowViewport * 1.7 - ultrawide * 0.22;
-  camera.fov = 42.4 + shortViewport * 5.2 + narrowViewport * 4.8;
+  camera.fov = fov;
+  camera.position.z = cameraZ;
 
   if (worldRoot) {
-    const scale = 1 - shortViewport * 0.1 - narrowViewport * 0.075;
+    const scale = Math.max(0.76, 1 - narrowViewport * 0.11 - shortViewport * 0.07 - landscapeShort * 0.07 + ultrawide * 0.035);
     worldRoot.scale.setScalar(scale);
-    worldRoot.position.y = 0.18 + shortViewport * 0.34 + narrowViewport * 0.12;
+    worldRoot.position.y = 0.08 + shortViewport * 0.2 + narrowViewport * 0.34 + tabletPortrait * 0.14 + landscapeShort * 0.16;
     worldRoot.position.x = 0;
   }
 
