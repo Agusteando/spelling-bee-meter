@@ -1,1 +1,1 @@
-Usa panorama vectorial de alta resolución para evitar pixelado en la escena
+Corrige panorama no espejado, reemplaza el fondo por la nueva ilustración, endereza abejas, limita su vuelo al escenario y recupera mariposas sprite.
