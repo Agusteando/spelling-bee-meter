@@ -1,1 +1,1 @@
-Replantea la trayectoria de cámara con más parallax y movimiento cinematográfico.
+Reemplaza las abejas por el nuevo sprite y corrige su dirección visual.
