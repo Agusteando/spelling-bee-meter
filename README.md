@@ -11,7 +11,8 @@ Vue + Three.js frontend for the Spelling Bee draw meter.
 
 The scene uses cache-versioned assets and a network-first service worker to prevent stale visual iterations.
 
-Latest pass 20260610-041500:
-- Restored the first provided Gaussian splat PLY as the active scene asset.
-- Preserved the current scene setup: floral underlay below the splat, bee and butterfly sprites, reduced wisps, and existing camera path.
-- Bumped cache/build stamps so the restored splat is fetched immediately.
+Latest pass 20260610-043000:
+- Shortened the camera trajectory so it only travels through the early useful portion of the previous depth motion, then returns.
+- Slowed the camera movement further and reduced side/vertical drift.
+- Replaced the intro with the uploaded video and removed its audio track.
+- Preserved the first Gaussian splat, floral underlay, bee sprites, butterfly sprites, and reduced wisps.

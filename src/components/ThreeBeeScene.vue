@@ -53,7 +53,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-041500';
+const BUILD_STAMP = '20260610-043000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -484,11 +484,13 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.018 : 0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.010 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  const depth = MathUtils.lerp(0.0, 2.18, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.028) * 0.028 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.024) * 0.012 : 0;
+  // Shortened path: only uses the first useful slice of the previous depth travel,
+  // then returns slowly instead of completing the full plunge through the splat.
+  const depth = MathUtils.lerp(0.0, 0.58, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.018) * 0.012 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.016) * 0.006 : 0;
 
   camera.position.copy(CAMERA_HOME)
     .addScaledVector(CAMERA_FORWARD, depth)

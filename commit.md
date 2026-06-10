@@ -1,1 +1,1 @@
-Restaura el primer Gaussian splat como activo, conservando la configuración actual de la escena y renovando el cache-bust.
+Acorta y suaviza la trayectoria de cámara, conserva el primer splat y reemplaza el intro por el video sin audio.
