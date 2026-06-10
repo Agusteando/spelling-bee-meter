@@ -1,1 +1,1 @@
-Reemplaza el splat activo por el nuevo archivo PLY y conserva la escena con sprites y base de terreno.
+Ajusta la trayectoria de cámara para mantenerla sobre la superficie del splat y mirar al cielo en un ángulo de cuarenta y cinco grados.

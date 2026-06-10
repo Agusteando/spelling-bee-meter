@@ -55,7 +55,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-020500';
+const BUILD_STAMP = '20260610-022500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -91,8 +91,8 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
+const fixedPitch = MathUtils.degToRad(45);
+const CAMERA_HOME = new Vector3(0.0, 0.84, 1.32);
 const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
 const clock = new Clock();
@@ -266,7 +266,7 @@ function createGroundPatch() {
   const material = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
     transparent: true,
-    opacity: 0.98,
+    opacity: 0.94,
     side: DoubleSide,
     depthWrite: false,
     depthTest: true
@@ -284,10 +284,12 @@ function createGroundPatch() {
   texture.colorSpace = SRGBColorSpace;
 
   groundPatch = new Mesh(geometry, material);
-  groundPatch.name = 'splat-ground-patch';
+  groundPatch.name = 'splat-ground-underlay';
   groundPatch.rotation.x = -Math.PI / 2;
-  groundPatch.position.set(0.0, -0.115, 3.05);
-  groundPatch.renderOrder = 2;
+  // This is an underlay only: keep it below the Gaussian terrain volume so it
+  // fills gaps without visually climbing onto the splat surface.
+  groundPatch.position.set(0.0, -0.64, 3.05);
+  groundPatch.renderOrder = -20;
   overlayRoot.add(groundPatch);
 }
 
@@ -473,7 +475,7 @@ function updateResponsive() {
 
 function fixedViewDirection() {
   const yaw = fixedYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(fixedPitch + manualPitchOffset, -0.38, 0.25);
+  const pitch = MathUtils.clamp(fixedPitch + manualPitchOffset, MathUtils.degToRad(34), MathUtils.degToRad(56));
   return new Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -486,11 +488,13 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.018 : 0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.010 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  const depth = MathUtils.lerp(0.0, 2.18, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.028) * 0.028 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.024) * 0.012 : 0;
+  const depth = MathUtils.lerp(0.0, 1.38, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.018) * 0.034 : 0;
+  const verticalBreath = props.slowDriftEnabled
+    ? Math.sin(elapsed * 0.018) * 0.01 + Math.sin(pingPong * Math.PI) * 0.045
+    : 0;
 
   camera.position.copy(CAMERA_HOME)
     .addScaledVector(CAMERA_FORWARD, depth)
@@ -542,7 +546,7 @@ function handlePointerMove(event) {
   const dx = event.clientX - pointerStartX;
   const dy = event.clientY - pointerStartY;
   manualYawOffset = MathUtils.clamp(yawStart - dx * 0.0012, -0.18, 0.18);
-  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, -0.16, 0.16);
+  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, MathUtils.degToRad(-10), MathUtils.degToRad(10));
 }
 
 function endPointer(event) {

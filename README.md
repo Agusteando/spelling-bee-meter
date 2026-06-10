@@ -16,3 +16,14 @@ Latest pass 20260610-020500:
 - Added a textured ground patch beneath the splat to fill visual holes using the provided image.
 - Placed a small set of animated bee and butterfly sprites across the splat space with gentle idle motion.
 - Updated cache/build stamps for fresh asset delivery.
+
+Latest pass 20260610-021500:
+- Lowered the terrain patch so it acts as an underlay beneath the Gaussian splat rather than sitting on the visible surface.
+- Kept bee and butterfly overlays unchanged.
+- Updated cache/build stamps.
+
+Latest pass 20260610-022500:
+- Keeps the Gaussian splat and underlay intact.
+- Changes the camera path so it remains above the surface instead of plunging into the splat.
+- Uses a fixed upward-facing view of about 45 degrees with very slow forward/back travel.
+- Updates cache/build stamps.
