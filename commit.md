@@ -1,1 +1,1 @@
-Hacer más evidente la trayectoria de cámara con una curva en S frontal que avanza y retrocede dentro de la escena
+Profundizar la trayectoria de cámara con un avance tipo dolly, ascenso suave y retorno controlado sin exponer la parte trasera del splat
