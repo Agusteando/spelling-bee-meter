@@ -38,9 +38,7 @@ import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
 
 import beeRightUrl from '../assets/spelling/bee_right.png';
 import beeLeftUrl from '../assets/spelling/bee_left.png';
-import butterflyGoldUrl from '../assets/spelling/butterfly_gold.png';
-import butterflyTealUrl from '../assets/spelling/butterfly_teal.png';
-import butterflyYellowUrl from '../assets/spelling/butterfly_yellow.png';
+import butterflyMaskUrl from '../assets/spelling/butterfly_cropped_mask.png';
 
 const props = defineProps({
   slowDriftEnabled: {
@@ -53,7 +51,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-071500';
+const BUILD_STAMP = '20260610-082000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.jpg?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -90,19 +88,20 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
+const fixedPitch = -0.02;
+const CAMERA_HOME = new Vector3(-1.18, -0.08, 1.54);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 54;
-const UNDERLAY_CENTER_Z = 3.35;
-const UNDERLAY_FLOOR_Y = -0.7;
+const SCENE_LOOP_SECONDS = 52;
+const UNDERLAY_CENTER_Z = 3.28;
+const UNDERLAY_FLOOR_Y = -1.08;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0 },
-  { t: 0.18, position: [-0.14, 0.055, 2.24], yaw: 0.034, pitch: -0.018, fovOffset: -0.4 },
-  { t: 0.4, position: [0.11, 0.028, 2.92], yaw: -0.026, pitch: -0.007, fovOffset: 0.2 },
-  { t: 0.63, position: [0.18, 0.036, 3.48], yaw: -0.05, pitch: 0.002, fovOffset: 0.8 },
-  { t: 0.82, position: [-0.08, 0.054, 2.48], yaw: 0.02, pitch: -0.016, fovOffset: -0.2 },
-  { t: 1, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0 }
+  { t: 0, position: [-1.18, -0.08, 1.54], yaw: -0.13, pitch: -0.05, fovOffset: 0.9 },
+  { t: 0.16, position: [-1.05, -0.075, 1.88], yaw: -0.09, pitch: -0.045, fovOffset: 0.5 },
+  { t: 0.34, position: [-0.58, -0.035, 2.38], yaw: 0.08, pitch: -0.028, fovOffset: 0.1 },
+  { t: 0.54, position: [0.18, 0.0, 2.95], yaw: -0.05, pitch: -0.015, fovOffset: -0.2 },
+  { t: 0.74, position: [0.78, 0.015, 3.48], yaw: -0.16, pitch: -0.006, fovOffset: 0.1 },
+  { t: 0.9, position: [-0.34, -0.05, 2.22], yaw: 0.03, pitch: -0.035, fovOffset: 0.55 },
+  { t: 1, position: [-1.18, -0.08, 1.54], yaw: -0.13, pitch: -0.05, fovOffset: 0.9 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -273,15 +272,15 @@ function createParticlePoints() {
 }
 
 
-function createSealedUnderlayGeometry({ width = 4.9, depth = 3.2, floorSegmentsX = 32, floorSegmentsZ = 26 } = {}) {
+function createSealedUnderlayGeometry({ width = 4.45, depth = 2.92, floorSegmentsX = 32, floorSegmentsZ = 26 } = {}) {
   const positions = [];
   const uvs = [];
   const indices = [];
   const halfWidth = width / 2;
   const halfDepth = depth / 2;
-  const rimLift = 0.42;
-  const wallTop = 0.78;
-  const wallLean = 0.26;
+  const rimLift = 0.2;
+  const wallTop = 0.56;
+  const wallLean = 0.32;
 
   const pushVertex = (x, y, z, u, v) => {
     positions.push(x, y, z);
@@ -297,7 +296,7 @@ function createSealedUnderlayGeometry({ width = 4.9, depth = 3.2, floorSegmentsX
       const ux = xIndex / floorSegmentsX;
       const nx = ux * 2 - 1;
       const edge = Math.max(Math.abs(nx), Math.abs(nz));
-      const lift = Math.pow(MathUtils.smoothstep(edge, 0.58, 1), 1.85) * rimLift;
+      const lift = Math.pow(MathUtils.smoothstep(edge, 0.64, 1), 2.15) * rimLift;
       pushVertex(nx * halfWidth, lift, nz * halfDepth, ux, vz);
     }
   }
@@ -402,10 +401,11 @@ function createFlyingSpriteActor({
   phase = Math.random() * Math.PI * 2,
   loops = 1,
   renderOrder = 40,
-  depthTest = false
+  depthTest = false,
+  color = '#ffffff'
 }) {
   const material = registerDisposable(new SpriteMaterial({
-    color: '#ffffff',
+    color,
     transparent: true,
     opacity,
     depthWrite: false,
@@ -455,49 +455,47 @@ function createFlyingActors() {
 
 
   const bees = [
-    { textureUrl: beeRightUrl, position: [-2.06, -0.23, 2.08], scale: [0.105, 0.114], center: [0.5, 0.42], bob: 0.026, sway: 0.105, depth: 0.045, speed: 0.31, flutter: 0.075, phase: 0.35, loops: 1, renderOrder: 46 },
-    { textureUrl: beeLeftUrl, position: [-1.42, -0.12, 2.42], scale: [0.098, 0.108], center: [0.5, 0.42], bob: 0.022, sway: 0.082, depth: 0.038, speed: 0.28, flutter: 0.07, phase: 1.65, loops: 1, renderOrder: 46 },
-    { textureUrl: beeRightUrl, position: [-0.36, -0.3, 2.96], scale: [0.092, 0.102], center: [0.5, 0.42], bob: 0.024, sway: 0.075, depth: 0.036, speed: 0.27, flutter: 0.07, phase: 3.15, loops: 1, renderOrder: 46 },
-    { textureUrl: beeLeftUrl, position: [1.34, -0.26, 3.74], scale: [0.102, 0.112], center: [0.5, 0.42], bob: 0.025, sway: 0.088, depth: 0.04, speed: 0.29, flutter: 0.072, phase: 4.35, loops: 1, renderOrder: 46 },
-    { textureUrl: beeRightUrl, position: [2.04, -0.12, 4.28], scale: [0.095, 0.104], center: [0.5, 0.42], bob: 0.021, sway: 0.07, depth: 0.034, speed: 0.26, flutter: 0.065, phase: 5.15, loops: 1, renderOrder: 46 }
-  ];
-
-  const butterflies = [
-    { textureUrl: butterflyTealUrl, position: [-1.42, 0.02, 2.2], scale: [0.15, 0.085], center: [0.5, 0.44], bob: 0.036, sway: 0.056, depth: 0.028, speed: 0.18, flutter: 0.15, rotation: -0.08, phase: 2.2, loops: 1, renderOrder: 42 },
-    { textureUrl: butterflyGoldUrl, position: [0.18, 0.08, 2.58], scale: [0.132, 0.091], center: [0.5, 0.45], bob: 0.032, sway: 0.052, depth: 0.03, speed: 0.17, flutter: 0.13, rotation: 0.04, phase: 0.95, loops: 1, renderOrder: 42 },
-    { textureUrl: butterflyYellowUrl, position: [1.24, 0.02, 3.2], scale: [0.118, 0.112], center: [0.5, 0.45], bob: 0.028, sway: 0.046, depth: 0.025, speed: 0.16, flutter: 0.135, rotation: 0.07, phase: 5.1, loops: 1, renderOrder: 42 }
+    { textureUrl: beeRightUrl, position: [-1.82, -0.34, 1.96], scale: [0.071, 0.078], center: [0.5, 0.42], bob: 0.022, sway: 0.08, depth: 0.038, speed: 0.29, flutter: 0.07, phase: 0.35, loops: 1, renderOrder: 46 },
+    { textureUrl: beeLeftUrl, position: [-1.48, -0.29, 2.16], scale: [0.066, 0.074], center: [0.5, 0.42], bob: 0.02, sway: 0.068, depth: 0.032, speed: 0.27, flutter: 0.068, phase: 1.65, loops: 1, renderOrder: 46 },
+    { textureUrl: beeRightUrl, position: [-1.08, -0.37, 2.34], scale: [0.062, 0.07], center: [0.5, 0.42], bob: 0.02, sway: 0.06, depth: 0.03, speed: 0.26, flutter: 0.066, phase: 3.15, loops: 1, renderOrder: 46 },
+    { textureUrl: beeLeftUrl, position: [-0.62, -0.32, 2.56], scale: [0.064, 0.071], center: [0.5, 0.42], bob: 0.021, sway: 0.065, depth: 0.034, speed: 0.27, flutter: 0.067, phase: 4.35, loops: 1, renderOrder: 46 },
+    { textureUrl: beeRightUrl, position: [-1.64, -0.18, 2.42], scale: [0.059, 0.067], center: [0.5, 0.42], bob: 0.019, sway: 0.055, depth: 0.028, speed: 0.25, flutter: 0.064, phase: 5.15, loops: 1, renderOrder: 46 }
   ];
 
   const surfaceButterflies = [
-    { textureUrl: butterflyGoldUrl, position: [-2.2, -0.34, 1.92], scale: [0.071, 0.049], rotation: -0.14, phase: 0.1 },
-    { textureUrl: butterflyTealUrl, position: [-1.92, -0.27, 2.28], scale: [0.076, 0.043], rotation: 0.09, phase: 0.72 },
-    { textureUrl: butterflyYellowUrl, position: [-1.54, -0.18, 2.04], scale: [0.068, 0.064], rotation: -0.05, phase: 1.15 },
-    { textureUrl: butterflyGoldUrl, position: [-1.12, -0.32, 2.68], scale: [0.061, 0.042], rotation: 0.1, phase: 1.72 },
-    { textureUrl: butterflyTealUrl, position: [-0.78, -0.2, 2.38], scale: [0.069, 0.039], rotation: -0.12, phase: 2.05 },
-    { textureUrl: butterflyYellowUrl, position: [-0.44, -0.36, 2.96], scale: [0.058, 0.055], rotation: 0.12, phase: 2.44 },
-    { textureUrl: butterflyGoldUrl, position: [-0.08, -0.18, 2.76], scale: [0.066, 0.045], rotation: -0.06, phase: 2.95 },
-    { textureUrl: butterflyTealUrl, position: [0.34, -0.28, 3.18], scale: [0.071, 0.04], rotation: 0.08, phase: 3.3 },
-    { textureUrl: butterflyYellowUrl, position: [0.72, -0.14, 3.02], scale: [0.062, 0.059], rotation: -0.1, phase: 3.76 },
-    { textureUrl: butterflyGoldUrl, position: [1.08, -0.32, 3.58], scale: [0.074, 0.051], rotation: 0.04, phase: 4.1 },
-    { textureUrl: butterflyTealUrl, position: [1.42, -0.2, 3.84], scale: [0.068, 0.039], rotation: -0.07, phase: 4.45 },
-    { textureUrl: butterflyYellowUrl, position: [1.82, -0.3, 4.1], scale: [0.064, 0.061], rotation: 0.13, phase: 4.9 },
-    { textureUrl: butterflyGoldUrl, position: [2.18, -0.18, 4.54], scale: [0.059, 0.041], rotation: -0.04, phase: 5.36 },
-    { textureUrl: butterflyTealUrl, position: [1.68, 0.02, 4.68], scale: [0.073, 0.041], rotation: 0.06, phase: 5.82 },
-    { textureUrl: butterflyYellowUrl, position: [0.98, 0.04, 4.42], scale: [0.056, 0.053], rotation: -0.13, phase: 6.14 }
+    { position: [-2.04, -0.49, 1.86], scale: [0.038, 0.037], rotation: -0.16, phase: 0.1, color: '#f39ac9' },
+    { position: [-1.76, -0.51, 2.18], scale: [0.034, 0.033], rotation: 0.1, phase: 0.72, color: '#7bd6de' },
+    { position: [-1.42, -0.46, 2.0], scale: [0.032, 0.031], rotation: -0.04, phase: 1.15, color: '#f3c96d' },
+    { position: [-1.12, -0.53, 2.58], scale: [0.029, 0.028], rotation: 0.12, phase: 1.72, color: '#bda4ff' },
+    { position: [-0.8, -0.47, 2.34], scale: [0.033, 0.032], rotation: -0.12, phase: 2.05, color: '#ff9b7c' },
+    { position: [-0.46, -0.55, 2.86], scale: [0.028, 0.027], rotation: 0.14, phase: 2.44, color: '#8fd27a' },
+    { position: [-0.1, -0.45, 2.7], scale: [0.032, 0.031], rotation: -0.06, phase: 2.95, color: '#d89cff' },
+    { position: [0.28, -0.53, 3.12], scale: [0.034, 0.033], rotation: 0.08, phase: 3.3, color: '#78c7ff' },
+    { position: [0.66, -0.44, 2.98], scale: [0.03, 0.029], rotation: -0.1, phase: 3.76, color: '#f5b86f' },
+    { position: [1.02, -0.54, 3.46], scale: [0.036, 0.035], rotation: 0.05, phase: 4.1, color: '#f28fb2' },
+    { position: [1.34, -0.47, 3.72], scale: [0.032, 0.031], rotation: -0.07, phase: 4.45, color: '#89d8c6' },
+    { position: [1.7, -0.52, 3.98], scale: [0.031, 0.03], rotation: 0.13, phase: 4.9, color: '#efce73' },
+    { position: [1.96, -0.43, 4.28], scale: [0.029, 0.028], rotation: -0.04, phase: 5.36, color: '#c8a3ff' },
+    { position: [1.52, -0.38, 4.38], scale: [0.035, 0.034], rotation: 0.06, phase: 5.82, color: '#f6a07d' },
+    { position: [0.92, -0.4, 4.14], scale: [0.027, 0.026], rotation: -0.13, phase: 6.14, color: '#79dbe8' },
+    { position: [-1.88, -0.42, 2.76], scale: [0.027, 0.026], rotation: 0.18, phase: 0.42, color: '#f0a0df' },
+    { position: [-0.2, -0.5, 3.48], scale: [0.031, 0.03], rotation: -0.2, phase: 1.94, color: '#a1db7d' },
+    { position: [0.48, -0.49, 3.78], scale: [0.028, 0.027], rotation: 0.18, phase: 2.72, color: '#ffc17a' }
   ].map((actor) => ({
-    center: [0.5, 0.45],
-    bob: 0.018,
-    sway: 0.028,
-    depth: 0.015,
-    speed: 0.12,
-    flutter: 0.105,
-    opacity: 0.86,
+    textureUrl: butterflyMaskUrl,
+    center: [0.5, 0.5],
+    bob: 0.01,
+    sway: 0.014,
+    depth: 0.008,
+    speed: 0.1,
+    flutter: 0.075,
+    opacity: 0.82,
     loops: 1,
     renderOrder: 41,
     ...actor
   }));
 
-  [...bees, ...butterflies, ...surfaceButterflies].forEach(createFlyingSpriteActor);
+  [...bees, ...surfaceButterflies].forEach(createFlyingSpriteActor);
 }
 
 function updateFlyingActors(loopTime) {
