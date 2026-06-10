@@ -51,7 +51,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-203000';
+const BUILD_STAMP = '20260610-214500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const SKYBOX_REPEAT_X = 4.05;
@@ -91,17 +91,18 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.035, 1.74);
+const CAMERA_HOME = new Vector3(0.0, 0.05, 1.55);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 56;
+const SCENE_LOOP_SECONDS = 38;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.035, 1.74], yaw: -0.004, pitch: -0.016, fovOffset: 1.5 },
-  { t: 0.14, position: [0.055, 0.085, 2.12], yaw: 0.012, pitch: -0.02, fovOffset: 0.3 },
-  { t: 0.32, position: [0.095, 0.165, 2.72], yaw: 0.022, pitch: -0.026, fovOffset: -2.2 },
-  { t: 0.48, position: [0.02, 0.11, 3.12], yaw: 0.006, pitch: -0.024, fovOffset: -3.2 },
-  { t: 0.64, position: [-0.09, 0.18, 2.62], yaw: -0.018, pitch: -0.026, fovOffset: -1.6 },
-  { t: 0.82, position: [-0.045, 0.075, 2.04], yaw: -0.012, pitch: -0.019, fovOffset: 0.8 },
-  { t: 1, position: [0.0, 0.035, 1.74], yaw: -0.004, pitch: -0.016, fovOffset: 1.5 }
+  { t: 0, position: [0.0, 0.05, 1.55], yaw: -0.02, pitch: -0.018, fovOffset: 2.5 },
+  { t: 0.12, position: [-0.28, 0.18, 2.42], yaw: -0.072, pitch: -0.034, fovOffset: 0.8 },
+  { t: 0.28, position: [0.42, 0.38, 4.28], yaw: 0.115, pitch: -0.062, fovOffset: -2.8 },
+  { t: 0.42, position: [-0.18, 0.28, 6.2], yaw: -0.052, pitch: -0.05, fovOffset: -5.2 },
+  { t: 0.55, position: [0.24, 0.18, 7.05], yaw: 0.068, pitch: -0.036, fovOffset: -5.8 },
+  { t: 0.72, position: [-0.36, 0.34, 4.65], yaw: -0.102, pitch: -0.058, fovOffset: -2.4 },
+  { t: 0.88, position: [0.16, 0.12, 2.38], yaw: 0.046, pitch: -0.026, fovOffset: 0.7 },
+  { t: 1, position: [0.0, 0.05, 1.55], yaw: -0.02, pitch: -0.018, fovOffset: 2.5 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -778,7 +779,7 @@ function sampleGaussianCameraTrajectory(progress) {
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
   const yaw = baseYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.16, 0.06);
+  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.24, 0.12);
   return new Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -795,8 +796,8 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0028 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.002 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.01 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.014 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);
