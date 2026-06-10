@@ -38,7 +38,6 @@ import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
 
 import beeRightUrl from '../assets/spelling/bee_right.png';
 import beeLeftUrl from '../assets/spelling/bee_left.png';
-import butterflyMaskUrl from '../assets/spelling/butterfly_cropped_mask.png';
 
 const props = defineProps({
   slowDriftEnabled: {
@@ -51,7 +50,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-111500';
+const BUILD_STAMP = '20260610-190500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -77,6 +76,8 @@ let splatRoot;
 let splatMesh;
 let particleSystem;
 let groundUnderlay;
+let beeRightTexture;
+let beeLeftTexture;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -91,24 +92,26 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.04, 1.76);
+const CAMERA_HOME = new Vector3(0.0, 0.045, 1.92);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 78;
+const SCENE_LOOP_SECONDS = 92;
 const UNDERLAY_CENTER_Z = 3.22;
 const UNDERLAY_FLOOR_Y = -1.32;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.04, 1.76], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
-  { t: 0.18, position: [0.035, 0.043, 1.9], yaw: 0.018, pitch: -0.012, fovOffset: 0.05 },
-  { t: 0.38, position: [-0.075, 0.047, 2.1], yaw: -0.025, pitch: -0.01, fovOffset: -0.05 },
-  { t: 0.62, position: [0.105, 0.045, 2.29], yaw: 0.032, pitch: -0.009, fovOffset: -0.1 },
-  { t: 0.82, position: [-0.04, 0.042, 2.4], yaw: -0.012, pitch: -0.011, fovOffset: 0.0 },
-  { t: 1, position: [0.0, 0.04, 1.76], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
+  { t: 0, position: [0.0, 0.045, 1.92], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
+  { t: 0.16, position: [0.06, 0.052, 2.08], yaw: 0.024, pitch: -0.013, fovOffset: -0.1 },
+  { t: 0.34, position: [0.14, 0.06, 2.34], yaw: 0.058, pitch: -0.014, fovOffset: -0.18 },
+  { t: 0.54, position: [0.045, 0.065, 2.64], yaw: 0.026, pitch: -0.012, fovOffset: -0.24 },
+  { t: 0.74, position: [-0.11, 0.058, 2.48], yaw: -0.045, pitch: -0.011, fovOffset: -0.18 },
+  { t: 0.9, position: [-0.055, 0.05, 2.14], yaw: -0.02, pitch: -0.012, fovOffset: -0.08 },
+  { t: 1, position: [0.0, 0.045, 1.92], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
 const uniforms = [];
-const flyingActors = [];
+const butterflyActors = [];
+const beeActors = [];
 const cameraPathPosition = new Vector3();
 const cameraPathTargetPosition = new Vector3();
 let cameraPathYaw = fixedYaw;
@@ -391,65 +394,169 @@ function createGroundUnderlay() {
   texture.colorSpace = SRGBColorSpace;
 }
 
-function createFlyingSpriteActor({
-  textureUrl,
-  position,
-  scale,
-  center = [0.5, 0.5],
-  bob = 0.04,
-  sway = 0.08,
-  depth = 0.06,
-  speed = 0.3,
-  flutter = 0.1,
-  opacity = 1,
-  rotation = 0,
-  phase = Math.random() * Math.PI * 2,
-  loops = 1,
-  renderOrder = 40,
-  depthTest = false,
-  color = '#ffffff'
-}) {
-  const material = registerDisposable(new SpriteMaterial({
-    color,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    depthTest,
-    alphaTest: 0.02
-  }));
 
-  const texture = registerTexture(loader.load(textureUrl, (loaded) => {
-    loaded.colorSpace = SRGBColorSpace;
-    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
-    loaded.minFilter = LinearFilter;
-    loaded.magFilter = LinearFilter;
-    loaded.needsUpdate = true;
-    material.map = loaded;
-    material.needsUpdate = true;
-  }));
+const FLOWER_PATCHES = [
+  new Vector3(-1.86, -0.5, 2.08),
+  new Vector3(-1.38, -0.47, 2.48),
+  new Vector3(-0.9, -0.51, 2.94),
+  new Vector3(-0.28, -0.48, 3.36),
+  new Vector3(0.38, -0.5, 3.78),
+  new Vector3(1.02, -0.46, 4.16),
+  new Vector3(1.54, -0.43, 4.54),
+  new Vector3(0.66, -0.44, 4.72),
+  new Vector3(-0.52, -0.46, 4.08)
+];
+
+const BUTTERFLY_PALETTE = [
+  { top: '#f39ac9', bottom: '#ffd36b' },
+  { top: '#7bd6de', bottom: '#b2f1f4' },
+  { top: '#f3c96d', bottom: '#f8e8aa' },
+  { top: '#bda4ff', bottom: '#e1d3ff' },
+  { top: '#ff9b7c', bottom: '#ffd3b8' },
+  { top: '#8fd27a', bottom: '#d8f1a9' },
+  { top: '#78c7ff', bottom: '#c6ebff' },
+  { top: '#ef89b7', bottom: '#ffd4e5' }
+];
+
+function createTriangleGeometry(points) {
+  const geometry = registerDisposable(new BufferGeometry());
+  geometry.setAttribute('position', new Float32BufferAttribute(points.flat(), 3));
+  geometry.setIndex([0, 1, 2]);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function createBodyGeometry() {
+  const geometry = registerDisposable(new BufferGeometry());
+  geometry.setAttribute('position', new Float32BufferAttribute([
+    -0.01, 0.14, 0,
+     0.01, 0.14, 0,
+    -0.012, -0.15, 0,
+     0.012, -0.15, 0
+  ], 3));
+  geometry.setIndex([0, 2, 1, 1, 2, 3]);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function configureTexture(texture, repeatX = 1, repeatY = 1) {
   texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.needsUpdate = true;
+}
 
-  const sprite = new Sprite(material);
-  sprite.center.set(center[0], center[1]);
-  sprite.position.set(position[0], position[1], position[2]);
-  sprite.scale.set(scale[0], scale[1], 1);
-  sprite.material.rotation = rotation;
-  sprite.renderOrder = renderOrder;
-  overlayRoot.add(sprite);
+function createButterflyActor({ position, scale = 0.14, palette, phase = 0, bob = 0.016, sway = 0.038, depth = 0.032, flapSpeed = 13, wingBias = 0 }) {
+  const root = new Group();
+  root.position.set(position[0], position[1], position[2]);
+  root.renderOrder = 42;
+  overlayRoot.add(root);
 
-  flyingActors.push({
-    sprite,
-    basePosition: sprite.position.clone(),
-    baseScale: { x: scale[0], y: scale[1] },
+  const upperWingGeometry = createTriangleGeometry([
+    [0, 0.01, 0],
+    [0.13, 0.1, 0],
+    [0.16, -0.01, 0]
+  ]);
+  const lowerWingGeometry = createTriangleGeometry([
+    [0, -0.01, 0],
+    [0.11, -0.03, 0],
+    [0.13, -0.13, 0]
+  ]);
+  const bodyGeometry = createBodyGeometry();
+
+  const createWingMaterial = (color) => registerDisposable(new MeshBasicMaterial({
+    color,
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: false,
+    depthTest: true
+  }));
+
+  const leftUpper = new Mesh(upperWingGeometry, createWingMaterial(palette.top));
+  const rightUpper = new Mesh(upperWingGeometry, createWingMaterial(palette.top));
+  const leftLower = new Mesh(lowerWingGeometry, createWingMaterial(palette.bottom));
+  const rightLower = new Mesh(lowerWingGeometry, createWingMaterial(palette.bottom));
+  const body = new Mesh(bodyGeometry, registerDisposable(new MeshBasicMaterial({
+    color: '#47371c',
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.98,
+    depthWrite: false,
+    depthTest: true
+  })));
+
+  leftUpper.scale.x = -1;
+  leftLower.scale.x = -1;
+
+  [leftUpper, rightUpper, leftLower, rightLower, body].forEach((part) => {
+    part.renderOrder = 42;
+    root.add(part);
+  });
+
+  body.position.z = 0.002;
+  root.scale.setScalar(scale);
+
+  butterflyActors.push({
+    root,
+    leftUpper,
+    rightUpper,
+    leftLower,
+    rightLower,
+    basePosition: root.position.clone(),
+    scale,
     bob,
     sway,
     depth,
-    speed,
-    flutter,
+    flapSpeed,
+    wingBias,
+    phase
+  });
+}
+
+function loadBeeTexture(url) {
+  const texture = registerTexture(loader.load(url, (loaded) => configureTexture(loaded)));
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
+function createBeeActor({ route, phase = 0, scale = 0.052, speed = 1, collectRadius = 0.072, travelLift = 0.08, curve = 0.09, bob = 0.018 }) {
+  const material = registerDisposable(new SpriteMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity: 0.98,
+    depthWrite: false,
+    depthTest: false,
+    alphaTest: 0.02,
+    map: beeRightTexture
+  }));
+  const sprite = new Sprite(material);
+  sprite.center.set(0.5, 0.42);
+  sprite.scale.set(scale, scale * 1.12, 1);
+  sprite.renderOrder = 46;
+  overlayRoot.add(sprite);
+
+  const startPatch = FLOWER_PATCHES[route[0]].clone();
+  sprite.position.copy(startPatch);
+
+  beeActors.push({
+    sprite,
+    material,
+    route,
     phase,
-    opacity,
-    rotation,
-    loops
+    baseScale: { x: scale, y: scale * 1.12 },
+    speed,
+    collectRadius,
+    travelLift,
+    curve,
+    bob,
+    currentTexture: beeRightTexture,
+    lastPosition: startPatch.clone(),
+    lastDirectionX: 1
   });
 }
 
@@ -458,75 +565,159 @@ function createFlyingActors() {
   overlayRoot.name = 'splat-overlays';
   scene.add(overlayRoot);
 
+  beeRightTexture = loadBeeTexture(beeRightUrl);
+  beeLeftTexture = loadBeeTexture(beeLeftUrl);
 
-  const bees = [
-    { textureUrl: beeRightUrl, position: [-1.82, -0.34, 1.96], scale: [0.071, 0.078], center: [0.5, 0.42], bob: 0.022, sway: 0.08, depth: 0.038, speed: 0.29, flutter: 0.07, phase: 0.35, loops: 1, renderOrder: 46 },
-    { textureUrl: beeLeftUrl, position: [-1.48, -0.29, 2.16], scale: [0.066, 0.074], center: [0.5, 0.42], bob: 0.02, sway: 0.068, depth: 0.032, speed: 0.27, flutter: 0.068, phase: 1.65, loops: 1, renderOrder: 46 },
-    { textureUrl: beeRightUrl, position: [-1.08, -0.37, 2.34], scale: [0.062, 0.07], center: [0.5, 0.42], bob: 0.02, sway: 0.06, depth: 0.03, speed: 0.26, flutter: 0.066, phase: 3.15, loops: 1, renderOrder: 46 },
-    { textureUrl: beeLeftUrl, position: [-0.62, -0.32, 2.56], scale: [0.064, 0.071], center: [0.5, 0.42], bob: 0.021, sway: 0.065, depth: 0.034, speed: 0.27, flutter: 0.067, phase: 4.35, loops: 1, renderOrder: 46 },
-    { textureUrl: beeRightUrl, position: [-1.64, -0.18, 2.42], scale: [0.059, 0.067], center: [0.5, 0.42], bob: 0.019, sway: 0.055, depth: 0.028, speed: 0.25, flutter: 0.064, phase: 5.15, loops: 1, renderOrder: 46 }
+  const butterflyPlacements = [
+    [-1.92, -0.56, 2.12], [-1.58, -0.54, 2.42], [-1.18, -0.52, 2.76],
+    [-0.72, -0.56, 3.02], [-0.32, -0.53, 3.38], [0.12, -0.55, 3.72],
+    [0.58, -0.5, 3.98], [1.02, -0.54, 4.24], [1.46, -0.48, 4.52],
+    [0.84, -0.51, 4.68], [0.18, -0.52, 4.12], [-0.48, -0.5, 3.84],
+    [-1.32, -0.49, 3.38], [1.78, -0.46, 4.86]
   ];
 
-  const surfaceButterflies = [
-    { position: [-2.04, -0.49, 1.86], scale: [0.038, 0.037], rotation: -0.16, phase: 0.1, color: '#f39ac9' },
-    { position: [-1.76, -0.51, 2.18], scale: [0.034, 0.033], rotation: 0.1, phase: 0.72, color: '#7bd6de' },
-    { position: [-1.42, -0.46, 2.0], scale: [0.032, 0.031], rotation: -0.04, phase: 1.15, color: '#f3c96d' },
-    { position: [-1.12, -0.53, 2.58], scale: [0.029, 0.028], rotation: 0.12, phase: 1.72, color: '#bda4ff' },
-    { position: [-0.8, -0.47, 2.34], scale: [0.033, 0.032], rotation: -0.12, phase: 2.05, color: '#ff9b7c' },
-    { position: [-0.46, -0.55, 2.86], scale: [0.028, 0.027], rotation: 0.14, phase: 2.44, color: '#8fd27a' },
-    { position: [-0.1, -0.45, 2.7], scale: [0.032, 0.031], rotation: -0.06, phase: 2.95, color: '#d89cff' },
-    { position: [0.28, -0.53, 3.12], scale: [0.034, 0.033], rotation: 0.08, phase: 3.3, color: '#78c7ff' },
-    { position: [0.66, -0.44, 2.98], scale: [0.03, 0.029], rotation: -0.1, phase: 3.76, color: '#f5b86f' },
-    { position: [1.02, -0.54, 3.46], scale: [0.036, 0.035], rotation: 0.05, phase: 4.1, color: '#f28fb2' },
-    { position: [1.34, -0.47, 3.72], scale: [0.032, 0.031], rotation: -0.07, phase: 4.45, color: '#89d8c6' },
-    { position: [1.7, -0.52, 3.98], scale: [0.031, 0.03], rotation: 0.13, phase: 4.9, color: '#efce73' },
-    { position: [1.96, -0.43, 4.28], scale: [0.029, 0.028], rotation: -0.04, phase: 5.36, color: '#c8a3ff' },
-    { position: [1.52, -0.38, 4.38], scale: [0.035, 0.034], rotation: 0.06, phase: 5.82, color: '#f6a07d' },
-    { position: [0.92, -0.4, 4.14], scale: [0.027, 0.026], rotation: -0.13, phase: 6.14, color: '#79dbe8' },
-    { position: [-1.88, -0.42, 2.76], scale: [0.027, 0.026], rotation: 0.18, phase: 0.42, color: '#f0a0df' },
-    { position: [-0.2, -0.5, 3.48], scale: [0.031, 0.03], rotation: -0.2, phase: 1.94, color: '#a1db7d' },
-    { position: [0.48, -0.49, 3.78], scale: [0.028, 0.027], rotation: 0.18, phase: 2.72, color: '#ffc17a' }
-  ].map((actor) => ({
-    textureUrl: butterflyMaskUrl,
-    center: [0.5, 0.5],
-    bob: 0.01,
-    sway: 0.014,
-    depth: 0.008,
-    speed: 0.1,
-    flutter: 0.075,
-    opacity: 0.82,
-    loops: 1,
-    renderOrder: 41,
-    ...actor
-  }));
+  butterflyPlacements.forEach((position, index) => {
+    createButterflyActor({
+      position,
+      scale: 0.112 + (index % 3) * 0.012,
+      palette: BUTTERFLY_PALETTE[index % BUTTERFLY_PALETTE.length],
+      phase: index * 0.61,
+      bob: 0.01 + (index % 4) * 0.002,
+      sway: 0.018 + (index % 5) * 0.004,
+      depth: 0.014 + (index % 3) * 0.004,
+      flapSpeed: 10.5 + (index % 6) * 0.85,
+      wingBias: (index % 2 === 0 ? 1 : -1) * 0.08
+    });
+  });
 
-  [...bees, ...surfaceButterflies].forEach(createFlyingSpriteActor);
+  const beeConfigs = [
+    { route: [0, 1, 2], phase: 0.02, scale: 0.046, speed: 0.86, collectRadius: 0.062, travelLift: 0.07, curve: 0.082 },
+    { route: [1, 2, 4], phase: 0.15, scale: 0.044, speed: 0.93, collectRadius: 0.066, travelLift: 0.075, curve: -0.088 },
+    { route: [2, 3, 5], phase: 0.28, scale: 0.045, speed: 0.9, collectRadius: 0.058, travelLift: 0.068, curve: 0.084 },
+    { route: [3, 4, 6], phase: 0.39, scale: 0.043, speed: 0.88, collectRadius: 0.06, travelLift: 0.072, curve: -0.08 },
+    { route: [4, 5, 7], phase: 0.5, scale: 0.045, speed: 0.95, collectRadius: 0.064, travelLift: 0.08, curve: 0.092 },
+    { route: [5, 6, 7], phase: 0.61, scale: 0.042, speed: 0.9, collectRadius: 0.059, travelLift: 0.07, curve: -0.082 },
+    { route: [0, 2, 8], phase: 0.74, scale: 0.044, speed: 0.91, collectRadius: 0.063, travelLift: 0.074, curve: 0.086 },
+    { route: [8, 3, 1], phase: 0.83, scale: 0.043, speed: 0.87, collectRadius: 0.057, travelLift: 0.071, curve: -0.09 },
+    { route: [2, 5, 6], phase: 0.91, scale: 0.041, speed: 0.97, collectRadius: 0.056, travelLift: 0.078, curve: 0.084 },
+    { route: [1, 4, 7], phase: 0.08, scale: 0.044, speed: 0.89, collectRadius: 0.06, travelLift: 0.075, curve: -0.087 },
+    { route: [3, 6, 5], phase: 0.22, scale: 0.042, speed: 0.94, collectRadius: 0.055, travelLift: 0.073, curve: 0.083 },
+    { route: [0, 3, 4], phase: 0.57, scale: 0.043, speed: 0.92, collectRadius: 0.061, travelLift: 0.076, curve: -0.085 }
+  ];
+
+  beeConfigs.forEach(createBeeActor);
 }
 
-function updateFlyingActors(loopTime) {
-  if (!flyingActors.length) return;
+function updateButterflies(loopTime) {
+  if (!butterflyActors.length || !camera) return;
 
-  const loopProgress = loopTime / SCENE_LOOP_SECONDS;
-
-  flyingActors.forEach((actor) => {
-    const t = loopProgress * Math.PI * 2 * actor.loops + actor.phase;
-    const driftX = Math.sin(t) * actor.sway + Math.sin(t * 2) * actor.sway * actor.speed;
-    const driftY = Math.sin(t * 2) * actor.bob + Math.cos(t) * actor.bob * 0.35;
-    const driftZ = Math.cos(t) * actor.depth;
-    const flutter = 1 + Math.sin(t * 9.0) * actor.flutter;
-    const squeeze = 1 + Math.cos(t * 7.0) * actor.flutter * 0.22;
-
-    actor.sprite.position.set(
-      actor.basePosition.x + driftX,
-      actor.basePosition.y + driftY,
-      actor.basePosition.z + driftZ
+  butterflyActors.forEach((actor, index) => {
+    const t = loopTime * (0.22 + index * 0.002) + actor.phase;
+    actor.root.quaternion.copy(camera.quaternion);
+    actor.root.position.set(
+      actor.basePosition.x + Math.sin(t * 0.9) * actor.sway,
+      actor.basePosition.y + Math.sin(t * 1.8) * actor.bob,
+      actor.basePosition.z + Math.cos(t * 0.75) * actor.depth
     );
-    actor.sprite.scale.set(actor.baseScale.x * flutter, actor.baseScale.y * squeeze, 1);
-    actor.sprite.material.opacity = actor.opacity * (0.9 + Math.sin(t * 2) * 0.08);
+
+    const flap = 0.26 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.95;
+    const lowerFlap = flap * 0.72;
+
+    actor.leftUpper.rotation.y = flap + actor.wingBias;
+    actor.rightUpper.rotation.y = -flap - actor.wingBias;
+    actor.leftLower.rotation.y = lowerFlap + actor.wingBias * 0.65;
+    actor.rightLower.rotation.y = -lowerFlap - actor.wingBias * 0.65;
+
+    actor.leftUpper.rotation.z = 0.18;
+    actor.rightUpper.rotation.z = -0.18;
+    actor.leftLower.rotation.z = -0.08;
+    actor.rightLower.rotation.z = 0.08;
   });
 }
 
+function sampleBeeSegment(actor, loopProgress, offset = 0) {
+  const routeLength = actor.route.length;
+  const cycle = (((loopProgress * actor.speed) + actor.phase + offset) % 1 + 1) % 1;
+  const scaled = cycle * routeLength;
+  const segmentIndex = Math.floor(scaled) % routeLength;
+  const local = scaled - Math.floor(scaled);
+  const from = FLOWER_PATCHES[actor.route[segmentIndex]];
+  const to = FLOWER_PATCHES[actor.route[(segmentIndex + 1) % routeLength]];
+  const vector = to.clone().sub(from);
+  const flatLength = Math.max(Math.hypot(vector.x, vector.z), 0.0001);
+  const normalX = -vector.z / flatLength;
+  const normalZ = vector.x / flatLength;
+
+  const collectPortion = 0.28;
+  const transitEnd = 0.78;
+  const point = new Vector3();
+
+  if (local < collectPortion) {
+    const u = local / collectPortion;
+    const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 4;
+    point.copy(from);
+    point.x += Math.cos(angle) * actor.collectRadius;
+    point.z += Math.sin(angle * 1.08) * actor.collectRadius * 0.72;
+    point.y += Math.sin(angle * 2.0) * actor.bob;
+    return point;
+  }
+
+  if (local < transitEnd) {
+    const u = (local - collectPortion) / (transitEnd - collectPortion);
+    const eased = MathUtils.smoothstep(u, 0, 1);
+    point.lerpVectors(from, to, eased);
+    point.x += Math.sin(u * Math.PI) * actor.curve * normalX;
+    point.z += Math.sin(u * Math.PI) * actor.curve * normalZ;
+    point.y += Math.sin(u * Math.PI) * actor.travelLift;
+    return point;
+  }
+
+  const u = (local - transitEnd) / (1 - transitEnd);
+  const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 3 + Math.PI * 0.4;
+  point.copy(to);
+  point.x += Math.cos(angle) * actor.collectRadius * 0.88;
+  point.z += Math.sin(angle * 1.12) * actor.collectRadius * 0.66;
+  point.y += Math.cos(angle * 2.0) * actor.bob * 0.9;
+  return point;
+}
+
+function updateBees(loopTime) {
+  if (!beeActors.length) return;
+  const loopProgress = loopTime / SCENE_LOOP_SECONDS;
+
+  beeActors.forEach((actor) => {
+    const position = sampleBeeSegment(actor, loopProgress);
+    const previous = actor.lastPosition.clone();
+    const velocity = position.clone().sub(previous);
+    const directionX = Math.abs(velocity.x) > 0.0005 ? Math.sign(velocity.x) : actor.lastDirectionX;
+
+    actor.sprite.position.copy(position);
+
+    const wingPulse = 1 + Math.sin(loopTime * 16 * actor.speed + actor.phase * Math.PI * 4) * 0.12;
+    const bodySqueeze = 1 + Math.cos(loopTime * 12 * actor.speed + actor.phase * Math.PI * 3) * 0.08;
+    actor.sprite.scale.set(actor.baseScale.x * wingPulse, actor.baseScale.y * bodySqueeze, 1);
+    actor.sprite.material.rotation = MathUtils.clamp(velocity.y * 3.2, -0.24, 0.24);
+
+    const targetTexture = directionX >= 0 ? beeRightTexture : beeLeftTexture;
+    if (actor.currentTexture !== targetTexture) {
+      actor.material.map = targetTexture;
+      actor.material.needsUpdate = true;
+      actor.currentTexture = targetTexture;
+    }
+
+    actor.material.opacity = 0.92 + Math.sin(loopTime * 5.0 + actor.phase * Math.PI * 3) * 0.06;
+    actor.lastPosition.copy(position);
+    actor.lastDirectionX = directionX || actor.lastDirectionX;
+  });
+}
+
+function updateFlyingActors(loopTime) {
+  updateButterflies(loopTime);
+  updateBees(loopTime);
+}
+
 function createSplatScene() {
+
   splatLoading.value = true;
   splatRoot = new Group();
   splatRoot.name = 'gaussian-splat-root-at-origin';
@@ -540,7 +731,7 @@ function createSplatScene() {
     lod: true,
     enableLod: true,
     lodScale: 1.25,
-    maxSplats: 160000,
+    maxSplats: 1180000,
     onLoad: () => {
       if (disposed) return;
       splatLoading.value = false;
@@ -653,8 +844,8 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.006 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.003 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0035 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.0025 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);
@@ -768,7 +959,8 @@ onBeforeUnmount(() => {
     mount.value.removeEventListener('wheel', handleWheel);
   }
   window.removeEventListener('bee-meter-activity', handleActivity);
-  flyingActors.length = 0;
+  butterflyActors.length = 0;
+  beeActors.length = 0;
   cleanup.splice(0).forEach((fn) => fn());
   disposeTree(scene);
   sparkRenderer?.dispose?.();

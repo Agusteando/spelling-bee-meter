@@ -1,1 +1,1 @@
-Usa el nuevo skybox vectorial y ajusta su mapeo para apreciar mejor el patrón completo en cámara.
+Rediseñar mariposas con alas triangulares animadas y enriquecer el vuelo de las abejas con recorridos más vivos y abundantes
