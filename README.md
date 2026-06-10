@@ -27,3 +27,8 @@ Latest pass 20260610-022500:
 - Changes the camera path so it remains above the surface instead of plunging into the splat.
 - Uses a fixed upward-facing view of about 45 degrees with very slow forward/back travel.
 - Updates cache/build stamps.
+
+Latest pass 20260610-023500:
+- Reaimed the above-surface camera path toward the visible splat volume instead of pointing sky-only.
+- Kept slow fixed-angle depth travel without plunging below the reconstruction.
+- Updated cache stamp.

@@ -1,1 +1,1 @@
-Ajusta la trayectoria de cámara para mantenerla sobre la superficie del splat y mirar al cielo en un ángulo de cuarenta y cinco grados.
+Corrige la trayectoria de cámara para mantener visible el splat sobre la superficie sin apuntar fuera de la escena.

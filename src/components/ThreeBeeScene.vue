@@ -55,7 +55,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-022500';
+const BUILD_STAMP = '20260610-023500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -91,10 +91,11 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = MathUtils.degToRad(45);
-const CAMERA_HOME = new Vector3(0.0, 0.84, 1.32);
+const CAMERA_HOME = new Vector3(0.0, 0.72, 1.02);
 const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
+const LOOK_AHEAD = 1.65;
+const LOOK_HEIGHT = 0.28;
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -473,14 +474,15 @@ function updateResponsive() {
   });
 }
 
-function fixedViewDirection() {
+function getLookTarget(cameraPosition, depth, elapsed) {
   const yaw = fixedYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(fixedPitch + manualPitchOffset, MathUtils.degToRad(34), MathUtils.degToRad(56));
-  return new Vector3(
-    Math.sin(yaw) * Math.cos(pitch),
-    Math.sin(pitch),
-    Math.cos(yaw) * Math.cos(pitch)
-  ).normalize();
+  const forwardDistance = LOOK_AHEAD + Math.sin(elapsed * 0.012) * 0.12;
+  const lookHeight = LOOK_HEIGHT + manualPitchOffset * 0.42;
+  return cameraPosition.clone().add(new Vector3(
+    Math.sin(yaw) * forwardDistance,
+    lookHeight - cameraPosition.y,
+    Math.cos(yaw) * forwardDistance
+  ));
 }
 
 function updateCamera(delta, elapsed) {
@@ -488,20 +490,19 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.010 : 0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.008 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  const depth = MathUtils.lerp(0.0, 1.38, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.018) * 0.034 : 0;
+  const depth = MathUtils.lerp(0.0, 1.12, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.016) * 0.026 : 0;
   const verticalBreath = props.slowDriftEnabled
-    ? Math.sin(elapsed * 0.018) * 0.01 + Math.sin(pingPong * Math.PI) * 0.045
+    ? Math.sin(elapsed * 0.018) * 0.008 + Math.sin(pingPong * Math.PI) * 0.026
     : 0;
 
   camera.position.copy(CAMERA_HOME)
     .addScaledVector(CAMERA_FORWARD, depth)
     .addScaledVector(CAMERA_SIDE, sideSway);
   camera.position.y += verticalBreath;
-  const direction = fixedViewDirection();
-  camera.lookAt(camera.position.clone().add(direction));
+  camera.lookAt(getLookTarget(camera.position, depth, elapsed));
 
   if (skybox) skybox.position.copy(camera.position);
 
