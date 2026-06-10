@@ -1,1 +1,1 @@
-Profundizar la trayectoria de cámara con un avance tipo dolly, ascenso suave y retorno controlado sin exponer la parte trasera del splat
+Ampliar de forma marcada la entrada de cámara hacia el interior del splat con dolly profundo, ascenso suave y retorno frontal controlado

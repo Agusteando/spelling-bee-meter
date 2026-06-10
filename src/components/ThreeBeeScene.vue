@@ -51,7 +51,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-221500';
+const BUILD_STAMP = '20260610-230000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const SKYBOX_REPEAT_X = 4.05;
@@ -91,18 +91,20 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.018, 1.82);
+const CAMERA_HOME = new Vector3(0.0, 0.012, 1.58);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 56;
+const SCENE_LOOP_SECONDS = 48;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.018, 1.82], yaw: 0.0, pitch: -0.02, fovOffset: 1.8 },
-  { t: 0.14, position: [0.02, 0.038, 2.38], yaw: 0.008, pitch: -0.018, fovOffset: 0.4 },
-  { t: 0.32, position: [0.05, 0.084, 3.28], yaw: 0.018, pitch: -0.012, fovOffset: -0.8 },
-  { t: 0.52, position: [0.04, 0.168, 4.58], yaw: 0.014, pitch: 0.002, fovOffset: -2.2 },
-  { t: 0.66, position: [0.0, 0.236, 5.28], yaw: 0.0, pitch: 0.012, fovOffset: -3.3 },
-  { t: 0.76, position: [-0.015, 0.228, 5.34], yaw: -0.006, pitch: 0.01, fovOffset: -3.2 },
-  { t: 0.88, position: [0.01, 0.122, 3.74], yaw: 0.006, pitch: -0.006, fovOffset: -1.1 },
-  { t: 1, position: [0.0, 0.018, 1.82], yaw: 0.0, pitch: -0.02, fovOffset: 1.8 }
+  { t: 0, position: [0.0, 0.012, 1.58], yaw: 0.0, pitch: -0.026, fovOffset: 2.4 },
+  { t: 0.08, position: [0.006, 0.034, 2.72], yaw: 0.004, pitch: -0.022, fovOffset: 1.0 },
+  { t: 0.2, position: [-0.024, 0.092, 4.82], yaw: -0.012, pitch: -0.014, fovOffset: -0.4 },
+  { t: 0.34, position: [0.042, 0.22, 7.22], yaw: 0.018, pitch: 0.002, fovOffset: -1.8 },
+  { t: 0.46, position: [0.02, 0.38, 9.55], yaw: 0.01, pitch: 0.018, fovOffset: -2.6 },
+  { t: 0.58, position: [-0.018, 0.46, 10.65], yaw: -0.006, pitch: 0.024, fovOffset: -2.2 },
+  { t: 0.68, position: [0.012, 0.4, 9.25], yaw: 0.004, pitch: 0.014, fovOffset: -1.5 },
+  { t: 0.82, position: [-0.018, 0.18, 5.72], yaw: -0.008, pitch: -0.006, fovOffset: 0.0 },
+  { t: 0.94, position: [0.006, 0.046, 2.7], yaw: 0.004, pitch: -0.02, fovOffset: 1.2 },
+  { t: 1, position: [0.0, 0.012, 1.58], yaw: 0.0, pitch: -0.026, fovOffset: 2.4 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -796,8 +798,8 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0035 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.0045 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.002 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.003 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);
