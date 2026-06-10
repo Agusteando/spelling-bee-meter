@@ -19,9 +19,9 @@ The SPZ binary is intentionally not included in this zip. Manually place the ful
 
 If you build before copying the SPZ, copy it and rebuild.
 
-## Latest pass 20260611-023000
+## Latest pass 20260611-033500
 
-- Kept the app referencing `/splats/gaussians.spz`.
-- Supports raw NGSP SPZ and gzip-wrapped SPZ without bundling the splat file.
-- Removed the distributed SPZ binary from the lightweight package.
-- Updated splat setup notes and cache stamp.
+- Reworked the camera into a faster cinematic path with a neutral front start, early ant-view dip, stronger side parallax, deeper push, partial top reveal, and graceful return.
+- Kept the app referencing `/splats/gaussians.spz` without bundling the SPZ binary.
+- Preserved the SPZ v4 runtime compatibility and visible +Z-forward remapping.
+- Updated cache stamps.
