@@ -44,7 +44,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-012500';
+const BUILD_STAMP = '20260610-013800';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -73,13 +73,13 @@ let manualYawOffset = 0;
 let manualPitchOffset = 0;
 let yawStart = 0;
 let pitchStart = 0;
-let targetFov = 52;
-let fov = 52;
+let targetFov = 58;
+let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = -0.018;
-const CAMERA_HOME = new Vector3(0.0, 0.03, 0.34);
+const fixedPitch = -0.012;
+const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
 const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
 const clock = new Clock();
@@ -249,9 +249,10 @@ function createSplatScene() {
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
   splatRoot.scale.setScalar(3.85);
-  // PLY coordinates arrive inverted for this capture; rotate the splat, not the camera,
-  // so the camera path can stay inside the reconstructed volume.
-  splatRoot.rotation.x = Math.PI;
+  // Keep the PLY volume in front of the fixed +Z camera path.
+  // The prior X-axis flip moved the capture behind the camera; a Z rotation fixes
+  // the upside-down view without pushing the splat out of sight.
+  splatRoot.rotation.set(0, 0, Math.PI);
   scene.add(splatRoot);
 
   splatMesh = new SplatMesh({
@@ -313,7 +314,7 @@ function updateResponsive() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.3 : 1.55));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
-  targetFov = aspect < 0.72 ? 60 : aspect > 1.9 ? 48 : 52;
+  targetFov = aspect < 0.72 ? 66 : aspect > 1.9 ? 54 : 58;
   camera.fov = targetFov;
   camera.updateProjectionMatrix();
 
@@ -337,13 +338,14 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.035 : 0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.018 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  // The camera starts close to the capture origin and breathes deeper into the splat,
-  // but never backs out far enough to reveal the outside of the reconstruction.
-  const depth = MathUtils.lerp(0.10, 1.72, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.055) * 0.035 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.045) * 0.018 : 0;
+  // Stay inside the PLY bounds after the 3.85x scale: original z is roughly
+  // 0.42..1.34, so visible world depth is roughly 1.6..5.2.
+  // Start just inside the front of the capture and travel slowly deeper.
+  const depth = MathUtils.lerp(0.0, 2.18, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.028) * 0.028 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.024) * 0.012 : 0;
 
   camera.position.copy(CAMERA_HOME)
     .addScaledVector(CAMERA_FORWARD, depth)
@@ -405,7 +407,7 @@ function endPointer(event) {
 
 function handleWheel(event) {
   event.preventDefault();
-  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 2.0, 42, 66);
+  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 2.0, 46, 72);
   lastActivity = clock.elapsedTime;
 }
 

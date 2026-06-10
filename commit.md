@@ -1,1 +1,1 @@
-Corrige orientación del Gaussian Splat, acerca la cámara al origen y ajusta el recorrido para viajar lentamente dentro del volumen reconstruido.
+Corrige la visibilidad del splat PLY, mantiene la cámara dentro del volumen y ajusta el recorrido lento de profundidad.
