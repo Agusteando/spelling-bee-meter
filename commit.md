@@ -1,1 +1,1 @@
-Restaura el splat anterior, elimina la capa inferior y recupera el ángulo de cámara correcto.
+Coloca una capa floral debajo del splat para tapar huecos desde abajo, conserva abejas y mariposas, y reduce el tamaño de los wisps.

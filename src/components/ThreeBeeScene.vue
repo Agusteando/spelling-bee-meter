@@ -21,6 +21,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
+  PlaneGeometry,
   Points,
   RepeatWrapping,
   Scene,
@@ -52,9 +53,10 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-024500';
+const BUILD_STAMP = '20260610-031500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
+const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
 
 const mount = ref(null);
 const dragging = ref(false);
@@ -74,6 +76,7 @@ let overlayRoot;
 let splatRoot;
 let splatMesh;
 let particleSystem;
+let groundUnderlay;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -222,24 +225,24 @@ function createParticlePoints() {
     drifts.push(drift);
   };
 
-  for (let i = 0; i < 380; i += 1) {
+  for (let i = 0; i < 340; i += 1) {
     addPoint({
       x: MathUtils.randFloatSpread(5.4),
       y: MathUtils.randFloat(-1.0, 1.45),
       z: MathUtils.randFloat(0.2, 3.3),
       color: [1.0, MathUtils.randFloat(0.78, 0.96), MathUtils.randFloat(0.22, 0.58)],
-      size: MathUtils.randFloat(2.2, 6.8),
+      size: MathUtils.randFloat(1.6, 4.2),
       drift: MathUtils.randFloat(0.35, 1.25)
     });
   }
 
-  for (let i = 0; i < 28; i += 1) {
+  for (let i = 0; i < 18; i += 1) {
     addPoint({
       x: MathUtils.randFloatSpread(4.2),
       y: MathUtils.randFloat(-0.4, 1.15),
       z: MathUtils.randFloat(0.05, 2.55),
       color: [MathUtils.randFloat(0.45, 0.72), MathUtils.randFloat(0.9, 1.0), 1.0],
-      size: MathUtils.randFloat(14, 32),
+      size: MathUtils.randFloat(5.5, 10.5),
       drift: MathUtils.randFloat(0.7, 1.5)
     });
   }
@@ -255,6 +258,35 @@ function createParticlePoints() {
   particleSystem.name = 'foreground-pollen-and-wisps';
   particleSystem.renderOrder = 20;
   scene.add(particleSystem);
+}
+
+
+function createGroundUnderlay() {
+  const geometry = registerDisposable(new PlaneGeometry(24, 24, 1, 1));
+  const material = registerDisposable(new MeshBasicMaterial({
+    color: '#ffffff',
+    transparent: false,
+    depthWrite: true,
+    depthTest: true
+  }));
+
+  groundUnderlay = new Mesh(geometry, material);
+  groundUnderlay.name = 'gaussian-surface-hole-underlay';
+  groundUnderlay.rotation.x = -Math.PI / 2;
+  groundUnderlay.position.set(0, -0.62, 4.2);
+  groundUnderlay.renderOrder = -10;
+  scene.add(groundUnderlay);
+
+  const texture = registerTexture(loader.load(GROUND_UNDERLAY_URL, (loaded) => {
+    loaded.colorSpace = SRGBColorSpace;
+    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    loaded.minFilter = LinearFilter;
+    loaded.magFilter = LinearFilter;
+    loaded.needsUpdate = true;
+    material.map = loaded;
+    material.needsUpdate = true;
+  }));
+  texture.colorSpace = SRGBColorSpace;
 }
 
 function createFlyingSpriteActor({
@@ -396,6 +428,7 @@ function createScene() {
 
   createSkybox();
   createParticlePoints();
+  createGroundUnderlay();
   createSplatScene();
   createFlyingActors();
 
@@ -471,6 +504,11 @@ function updateCamera(delta, elapsed) {
     particleSystem.position.y = camera.position.y * 0.28;
     particleSystem.position.z = camera.position.z * 0.62;
     particleSystem.rotation.y = Math.sin(elapsed * 0.055) * 0.018;
+  }
+
+  if (groundUnderlay) {
+    groundUnderlay.position.x = camera.position.x * 0.08;
+    groundUnderlay.position.z = 4.2 + camera.position.z * 0.02;
   }
 
   updateFlyingActors(elapsed);
