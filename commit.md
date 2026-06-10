@@ -1,1 +1,1 @@
-Corrige panorama no espejado, reemplaza el fondo por la nueva ilustración, endereza abejas, limita su vuelo al escenario y recupera mariposas sprite.
+Reemplaza el panorama por SVG, acerca partículas y sprites a cámara, estabiliza abejas sin inversión visual y recupera mariposas en primer plano.

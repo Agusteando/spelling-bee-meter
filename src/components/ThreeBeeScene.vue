@@ -14,6 +14,7 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  CanvasTexture,
   DirectionalLight,
   Float32BufferAttribute,
   Group,
@@ -54,8 +55,8 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-001200';
-const PANORAMA_URL = `/panoramas/custom/spelling-hills-user-pano.png?v=${BUILD_STAMP}`;
+const BUILD_STAMP = '20260610-002500';
+const PANORAMA_URL = `/panoramas/custom/spelling-hills-user-pano.svg?v=${BUILD_STAMP}`;
 const SPLAT_URL = `/splats/ceramic_500k.spz?v=${BUILD_STAMP}`;
 const DETAIL_FOCUS = new Vector3(-2.1509, 0.7566, 0.8363);
 const DETAIL_ROBUST_SPAN = 102.1;
@@ -139,23 +140,47 @@ function loadTexture(url, onLoad, onError) {
   return texture;
 }
 
-function applyPanoramaTexture(material) {
-  const texture = loadTexture(PANORAMA_URL, (loaded) => {
-    loaded.wrapS = RepeatWrapping;
-    loaded.repeat.x = -1;
-    loaded.offset.x = 1;
-    loaded.generateMipmaps = true;
-    loaded.needsUpdate = true;
-    material.map = loaded;
-    material.needsUpdate = true;
-  }, (error) => {
-    console.warn('Could not load panorama texture', error);
-  });
+function getPanoramaTextureSize() {
+  const maxTextureSize = renderer?.capabilities?.maxTextureSize || 4096;
+  const deviceScale = Math.min(window.devicePixelRatio || 1, 2);
+  const viewportDrivenWidth = Math.ceil(Math.max(viewWidth || window.innerWidth || 1440, 1440) * deviceScale * 3);
+  const width = Math.min(maxTextureSize, Math.max(4096, viewportDrivenWidth));
+  return { width, height: Math.round(width / PANORAMA.aspect) };
+}
 
-  texture.wrapS = RepeatWrapping;
-  texture.repeat.x = -1;
-  texture.offset.x = 1;
-  material.map = texture;
+async function applyPanoramaTexture(material) {
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = PANORAMA_URL;
+    await image.decode();
+    if (disposed) return;
+
+    const { width, height } = getPanoramaTextureSize();
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.fillStyle = '#feecc4';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    cleanup.push(() => texture.dispose());
+
+    material.map = texture;
+    material.needsUpdate = true;
+  } catch (error) {
+    console.warn('Could not load SVG panorama texture', error);
+  }
 }
 
 function createPanorama() {
@@ -267,34 +292,33 @@ function createParticlePoints() {
   const phases = [];
   const drifts = [];
 
-  const addPoint = ({ radius, theta, phi, color, size, drift }) => {
-    const p = sphericalToWorld(radius, theta, phi);
-    positions.push(p.x, p.y, p.z);
+  const addPoint = ({ x, y, z, color, size, drift }) => {
+    positions.push(x, y, z);
     colors.push(color[0], color[1], color[2]);
     sizes.push(size);
     phases.push(Math.random() * Math.PI * 2);
     drifts.push(drift);
   };
 
-  for (let i = 0; i < 560; i += 1) {
+  for (let i = 0; i < 650; i += 1) {
     addPoint({
-      radius: MathUtils.randFloat(4.5, 20),
-      theta: MathUtils.randFloat(0.92, 1.75),
-      phi: MathUtils.randFloat(-Math.PI, Math.PI),
-      color: [1.0, MathUtils.randFloat(0.76, 0.94), MathUtils.randFloat(0.20, 0.58)],
-      size: MathUtils.randFloat(1.8, 5.8),
-      drift: MathUtils.randFloat(0.35, 1.25)
+      x: MathUtils.randFloatSpread(14),
+      y: MathUtils.randFloat(-1.8, 1.55),
+      z: MathUtils.randFloat(-2.4, -7.6),
+      color: [1.0, MathUtils.randFloat(0.76, 0.96), MathUtils.randFloat(0.22, 0.60)],
+      size: MathUtils.randFloat(2.2, 7.2),
+      drift: MathUtils.randFloat(0.45, 1.35)
     });
   }
 
-  for (let i = 0; i < 24; i += 1) {
+  for (let i = 0; i < 34; i += 1) {
     addPoint({
-      radius: MathUtils.randFloat(5.5, 13),
-      theta: MathUtils.randFloat(1.0, 1.58),
-      phi: MathUtils.randFloat(-Math.PI, Math.PI),
-      color: [MathUtils.randFloat(0.48, 0.74), MathUtils.randFloat(0.9, 1.0), 1.0],
-      size: MathUtils.randFloat(13, 30),
-      drift: MathUtils.randFloat(0.7, 1.5)
+      x: MathUtils.randFloatSpread(11),
+      y: MathUtils.randFloat(-0.95, 1.15),
+      z: MathUtils.randFloat(-2.1, -5.2),
+      color: [MathUtils.randFloat(0.46, 0.75), MathUtils.randFloat(0.90, 1.0), 1.0],
+      size: MathUtils.randFloat(15, 34),
+      drift: MathUtils.randFloat(0.8, 1.6)
     });
   }
 
@@ -388,10 +412,10 @@ function createBees() {
   beeRoot = new Group();
   scene.add(beeRoot);
 
-  createBee({ direction: 'right', height: 0.52, origin: new Vector3(-3.8, 0.86, -7.2), amp: new Vector3(0.95, 0.28, 0.35) });
-  createBee({ direction: 'left', height: 0.46, origin: new Vector3(4.0, 0.68, -7.8), amp: new Vector3(0.78, 0.21, 0.28) });
-  createBee({ direction: 'right', height: 0.44, origin: new Vector3(-5.4, -0.85, -5.9), amp: new Vector3(0.65, 0.14, 0.18) });
-  rareBee = createBee({ direction: 'right', height: 0.44, rare: true, origin: new Vector3(-6, 0.82, -6.4), amp: new Vector3(0.2, 0.12, 0.08) });
+  createBee({ direction: 'right', height: 0.56, origin: new Vector3(-3.6, 0.72, -4.35), amp: new Vector3(0.72, 0.20, 0.18) });
+  createBee({ direction: 'left', height: 0.50, origin: new Vector3(3.65, 0.55, -4.75), amp: new Vector3(0.62, 0.18, 0.16) });
+  createBee({ direction: 'right', height: 0.46, origin: new Vector3(-5.2, -0.95, -3.9), amp: new Vector3(0.48, 0.11, 0.10) });
+  rareBee = createBee({ direction: 'right', height: 0.50, rare: true, origin: new Vector3(-6, 0.72, -4.2), amp: new Vector3(0.18, 0.10, 0.06) });
   rareBee.visible = false;
 }
 
@@ -399,9 +423,9 @@ function createButterflies() {
   butterflyRoot = new Group();
   scene.add(butterflyRoot);
 
-  createButterfly(butterflyGoldUrl, { height: 0.48, origin: new Vector3(-2.7, -1.05, -6.8), amp: new Vector3(0.48, 0.12, 0.2), opacity: 0.85 });
-  createButterfly(butterflyTealUrl, { height: 0.38, origin: new Vector3(2.9, -0.76, -7.5), amp: new Vector3(0.38, 0.18, 0.15), opacity: 0.82 });
-  createButterfly(butterflyYellowUrl, { height: 0.44, origin: new Vector3(5.6, 0.52, -8.2), amp: new Vector3(0.34, 0.2, 0.12), opacity: 0.84 });
+  createButterfly(butterflyGoldUrl, { height: 0.58, origin: new Vector3(-2.65, -0.92, -3.8), amp: new Vector3(0.38, 0.11, 0.10), opacity: 0.9 });
+  createButterfly(butterflyTealUrl, { height: 0.48, origin: new Vector3(2.75, -0.64, -4.15), amp: new Vector3(0.32, 0.14, 0.10), opacity: 0.88 });
+  createButterfly(butterflyYellowUrl, { height: 0.54, origin: new Vector3(5.2, 0.40, -4.8), amp: new Vector3(0.30, 0.16, 0.08), opacity: 0.9 });
 }
 
 function ensureSplat() {
@@ -567,8 +591,8 @@ function animate() {
 
   for (const item of animated) {
     if (item.type === 'particles') {
-      item.object.rotation.y = elapsed * 0.004;
-      item.object.rotation.x = Math.sin(elapsed * 0.07) * 0.006;
+      item.object.rotation.y = Math.sin(elapsed * 0.03) * 0.02;
+      item.object.rotation.x = Math.sin(elapsed * 0.07) * 0.004;
     }
 
     if (item.type === 'bee') {
@@ -579,9 +603,7 @@ function animate() {
         data.origin.y + Math.cos(t * 1.15) * data.amp.y,
         data.origin.z + Math.sin(t * 0.52) * data.amp.z
       );
-      item.sprite.material.rotation = Math.sin(t * 1.8) * 0.1;
-      const dx = item.sprite.position.x - data.lastX;
-      if (Math.abs(dx) > 0.002) setBeeDirection(item.sprite, dx > 0 ? 'right' : 'left');
+      item.sprite.material.rotation = 0;
       data.lastX = item.sprite.position.x;
     }
 
@@ -605,9 +627,9 @@ function animate() {
       item.sprite.position.set(
         MathUtils.lerp(data.startX, data.endX, eased),
         0.86 + Math.sin(p * Math.PI * 3.5) * 0.18,
-        -6.35 + Math.sin(p * Math.PI * 2.0) * 0.18
+        -3.85 + Math.sin(p * Math.PI * 2.0) * 0.10
       );
-      item.sprite.material.rotation = Math.sin(elapsed * 7.0) * 0.08;
+      item.sprite.material.rotation = 0;
       if (p >= 1) {
         item.sprite.visible = false;
         item.sprite.userData.active = false;
