@@ -13,6 +13,7 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  DoubleSide,
   Float32BufferAttribute,
   Group,
   HemisphereLight,
@@ -21,17 +22,27 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
+  PlaneGeometry,
   Points,
   RepeatWrapping,
   Scene,
   ShaderMaterial,
   SphereGeometry,
+  Sprite,
+  SpriteMaterial,
   SRGBColorSpace,
   TextureLoader,
   Vector3,
   WebGLRenderer
 } from 'three';
 import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
+
+import beeRightUrl from '../assets/spelling/bee_right.png';
+import beeLeftUrl from '../assets/spelling/bee_left.png';
+import butterflyGoldUrl from '../assets/spelling/butterfly_gold.png';
+import butterflyTealUrl from '../assets/spelling/butterfly_teal.png';
+import butterflyYellowUrl from '../assets/spelling/butterfly_yellow.png';
+import splatGroundPatchUrl from '../assets/spelling/splat_ground_patch.png';
 
 const props = defineProps({
   slowDriftEnabled: {
@@ -44,7 +55,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-013800';
+const BUILD_STAMP = '20260610-015900';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -62,6 +73,8 @@ let disposed = false;
 let viewWidth = 1;
 let viewHeight = 1;
 let skybox;
+let overlayRoot;
+let groundPatch;
 let splatRoot;
 let splatMesh;
 let particleSystem;
@@ -86,10 +99,16 @@ const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
 const uniforms = [];
+const flyingActors = [];
 
 function registerDisposable(item) {
   cleanup.push(() => item?.dispose?.());
   return item;
+}
+
+function registerTexture(texture) {
+  cleanup.push(() => texture?.dispose?.());
+  return texture;
 }
 
 function disposeTree(object) {
@@ -115,7 +134,7 @@ function createSkybox() {
   skybox.renderOrder = -100;
   scene.add(skybox);
 
-  const texture = loader.load(SKYBOX_URL, (loaded) => {
+  const texture = registerTexture(loader.load(SKYBOX_URL, (loaded) => {
     loaded.colorSpace = SRGBColorSpace;
     loaded.wrapS = RepeatWrapping;
     loaded.repeat.x = -1;
@@ -126,9 +145,8 @@ function createSkybox() {
     loaded.needsUpdate = true;
     material.map = loaded;
     material.needsUpdate = true;
-  });
+  }));
   texture.colorSpace = SRGBColorSpace;
-  cleanup.push(() => texture.dispose());
 }
 
 function createParticleMaterial() {
@@ -243,15 +261,143 @@ function createParticlePoints() {
   scene.add(particleSystem);
 }
 
+function createGroundPatch() {
+  const geometry = registerDisposable(new PlaneGeometry(5.75, 2.875, 1, 1));
+  const material = registerDisposable(new MeshBasicMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity: 0.98,
+    side: DoubleSide,
+    depthWrite: false,
+    depthTest: true
+  }));
+
+  const texture = registerTexture(loader.load(splatGroundPatchUrl, (loaded) => {
+    loaded.colorSpace = SRGBColorSpace;
+    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    loaded.minFilter = LinearFilter;
+    loaded.magFilter = LinearFilter;
+    loaded.needsUpdate = true;
+    material.map = loaded;
+    material.needsUpdate = true;
+  }));
+  texture.colorSpace = SRGBColorSpace;
+
+  groundPatch = new Mesh(geometry, material);
+  groundPatch.name = 'splat-ground-patch';
+  groundPatch.rotation.x = -Math.PI / 2;
+  groundPatch.position.set(0.0, -0.115, 3.05);
+  groundPatch.renderOrder = 2;
+  overlayRoot.add(groundPatch);
+}
+
+function createFlyingSpriteActor({
+  textureUrl,
+  position,
+  scale,
+  center = [0.5, 0.5],
+  bob = 0.04,
+  sway = 0.08,
+  depth = 0.06,
+  speed = 0.3,
+  flutter = 0.1,
+  opacity = 1,
+  rotation = 0,
+  phase = Math.random() * Math.PI * 2
+}) {
+  const material = registerDisposable(new SpriteMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    depthTest: false,
+    alphaTest: 0.02
+  }));
+
+  const texture = registerTexture(loader.load(textureUrl, (loaded) => {
+    loaded.colorSpace = SRGBColorSpace;
+    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    loaded.minFilter = LinearFilter;
+    loaded.magFilter = LinearFilter;
+    loaded.needsUpdate = true;
+    material.map = loaded;
+    material.needsUpdate = true;
+  }));
+  texture.colorSpace = SRGBColorSpace;
+
+  const sprite = new Sprite(material);
+  sprite.center.set(center[0], center[1]);
+  sprite.position.set(position[0], position[1], position[2]);
+  sprite.scale.set(scale[0], scale[1], 1);
+  sprite.material.rotation = rotation;
+  sprite.renderOrder = 40;
+  overlayRoot.add(sprite);
+
+  flyingActors.push({
+    sprite,
+    basePosition: sprite.position.clone(),
+    baseScale: { x: scale[0], y: scale[1] },
+    bob,
+    sway,
+    depth,
+    speed,
+    flutter,
+    phase,
+    opacity,
+    rotation
+  });
+}
+
+function createFlyingActors() {
+  overlayRoot = new Group();
+  overlayRoot.name = 'splat-overlays';
+  scene.add(overlayRoot);
+
+  createGroundPatch();
+
+  const bees = [
+    { textureUrl: beeRightUrl, position: [-1.14, 0.22, 2.48], scale: [0.17, 0.185], center: [0.5, 0.42], bob: 0.032, sway: 0.11, depth: 0.09, speed: 0.31, flutter: 0.08, phase: 0.4 },
+    { textureUrl: beeLeftUrl, position: [0.96, 0.16, 2.86], scale: [0.16, 0.176], center: [0.5, 0.42], bob: 0.028, sway: 0.08, depth: 0.07, speed: 0.26, flutter: 0.07, phase: 1.9 },
+    { textureUrl: beeRightUrl, position: [-0.22, 0.31, 3.28], scale: [0.155, 0.17], center: [0.5, 0.42], bob: 0.038, sway: 0.09, depth: 0.08, speed: 0.28, flutter: 0.075, phase: 3.6 },
+    { textureUrl: beeLeftUrl, position: [1.18, 0.24, 3.62], scale: [0.145, 0.16], center: [0.5, 0.42], bob: 0.025, sway: 0.07, depth: 0.06, speed: 0.24, flutter: 0.065, phase: 4.7 }
+  ];
+
+  const butterflies = [
+    { textureUrl: butterflyTealUrl, position: [-1.38, 0.16, 2.18], scale: [0.28, 0.158], center: [0.5, 0.44], bob: 0.046, sway: 0.065, depth: 0.035, speed: 0.18, flutter: 0.16, rotation: -0.08, phase: 2.2 },
+    { textureUrl: butterflyGoldUrl, position: [0.24, 0.27, 2.56], scale: [0.25, 0.172], center: [0.5, 0.45], bob: 0.04, sway: 0.058, depth: 0.04, speed: 0.17, flutter: 0.13, rotation: 0.04, phase: 0.95 },
+    { textureUrl: butterflyYellowUrl, position: [1.28, 0.21, 3.18], scale: [0.24, 0.228], center: [0.5, 0.45], bob: 0.034, sway: 0.05, depth: 0.03, speed: 0.16, flutter: 0.14, rotation: 0.07, phase: 5.1 }
+  ];
+
+  [...bees, ...butterflies].forEach(createFlyingSpriteActor);
+}
+
+function updateFlyingActors(elapsed) {
+  if (!flyingActors.length) return;
+
+  flyingActors.forEach((actor) => {
+    const t = elapsed * actor.speed + actor.phase;
+    const driftX = Math.sin(t * 1.6) * actor.sway;
+    const driftY = Math.sin(t * 2.1) * actor.bob + Math.cos(t * 0.9) * actor.bob * 0.35;
+    const driftZ = Math.cos(t * 1.25) * actor.depth;
+    const flutter = 1 + Math.sin(t * 9.0) * actor.flutter;
+    const squeeze = 1 + Math.cos(t * 7.0) * actor.flutter * 0.22;
+
+    actor.sprite.position.set(
+      actor.basePosition.x + driftX,
+      actor.basePosition.y + driftY,
+      actor.basePosition.z + driftZ
+    );
+    actor.sprite.scale.set(actor.baseScale.x * flutter, actor.baseScale.y * squeeze, 1);
+    actor.sprite.material.opacity = actor.opacity * (0.9 + Math.sin(t * 1.7) * 0.08);
+  });
+}
+
 function createSplatScene() {
   splatLoading.value = true;
   splatRoot = new Group();
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
   splatRoot.scale.setScalar(3.85);
-  // Keep the PLY volume in front of the fixed +Z camera path.
-  // The prior X-axis flip moved the capture behind the camera; a Z rotation fixes
-  // the upside-down view without pushing the splat out of sight.
   splatRoot.rotation.set(0, 0, Math.PI);
   scene.add(splatRoot);
 
@@ -286,6 +432,7 @@ function createScene() {
   createSkybox();
   createParticlePoints();
   createSplatScene();
+  createFlyingActors();
 
   sparkRenderer = new SparkRenderer({
     renderer,
@@ -301,6 +448,7 @@ function createScene() {
 
 function updateSplatVisibility() {
   if (splatRoot) splatRoot.visible = props.splatEnabled;
+  if (overlayRoot) overlayRoot.visible = props.splatEnabled;
   splatLoading.value = Boolean(props.splatEnabled && splatMesh && !splatMesh.isInitialized);
 }
 
@@ -340,9 +488,6 @@ function updateCamera(delta, elapsed) {
 
   const travelCycle = props.slowDriftEnabled ? elapsed * 0.018 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  // Stay inside the PLY bounds after the 3.85x scale: original z is roughly
-  // 0.42..1.34, so visible world depth is roughly 1.6..5.2.
-  // Start just inside the front of the capture and travel slowly deeper.
   const depth = MathUtils.lerp(0.0, 2.18, pingPong);
   const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.028) * 0.028 : 0;
   const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.024) * 0.012 : 0;
@@ -362,6 +507,8 @@ function updateCamera(delta, elapsed) {
     particleSystem.position.z = camera.position.z * 0.62;
     particleSystem.rotation.y = Math.sin(elapsed * 0.055) * 0.018;
   }
+
+  updateFlyingActors(elapsed);
 }
 
 function animate() {
@@ -452,6 +599,7 @@ onBeforeUnmount(() => {
     mount.value.removeEventListener('wheel', handleWheel);
   }
   window.removeEventListener('bee-meter-activity', handleActivity);
+  flyingActors.length = 0;
   cleanup.splice(0).forEach((fn) => fn());
   disposeTree(scene);
   sparkRenderer?.dispose?.();

@@ -1,1 +1,1 @@
-Corrige la visibilidad del splat PLY, mantiene la cámara dentro del volumen y ajusta el recorrido lento de profundidad.
+Añade abejas y mariposas animadas sobre el splat y coloca una base texturizada para cubrir huecos del terreno.
