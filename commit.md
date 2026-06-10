@@ -1,1 +1,1 @@
-Corrige la trayectoria de cámara para mantener visible el splat sobre la superficie sin apuntar fuera de la escena.
+Restaura el splat anterior, elimina la capa inferior y recupera el ángulo de cámara correcto.

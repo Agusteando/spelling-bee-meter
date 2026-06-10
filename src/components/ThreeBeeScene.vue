@@ -13,7 +13,6 @@ import {
   BufferGeometry,
   Clock,
   Color,
-  DoubleSide,
   Float32BufferAttribute,
   Group,
   HemisphereLight,
@@ -22,7 +21,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
-  PlaneGeometry,
   Points,
   RepeatWrapping,
   Scene,
@@ -42,7 +40,6 @@ import beeLeftUrl from '../assets/spelling/bee_left.png';
 import butterflyGoldUrl from '../assets/spelling/butterfly_gold.png';
 import butterflyTealUrl from '../assets/spelling/butterfly_teal.png';
 import butterflyYellowUrl from '../assets/spelling/butterfly_yellow.png';
-import splatGroundPatchUrl from '../assets/spelling/splat_ground_patch.png';
 
 const props = defineProps({
   slowDriftEnabled: {
@@ -55,7 +52,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-023500';
+const BUILD_STAMP = '20260610-024500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -74,7 +71,6 @@ let viewWidth = 1;
 let viewHeight = 1;
 let skybox;
 let overlayRoot;
-let groundPatch;
 let splatRoot;
 let splatMesh;
 let particleSystem;
@@ -91,11 +87,10 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const CAMERA_HOME = new Vector3(0.0, 0.72, 1.02);
+const fixedPitch = -0.012;
+const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
 const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const LOOK_AHEAD = 1.65;
-const LOOK_HEIGHT = 0.28;
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -262,38 +257,6 @@ function createParticlePoints() {
   scene.add(particleSystem);
 }
 
-function createGroundPatch() {
-  const geometry = registerDisposable(new PlaneGeometry(5.75, 2.875, 1, 1));
-  const material = registerDisposable(new MeshBasicMaterial({
-    color: '#ffffff',
-    transparent: true,
-    opacity: 0.94,
-    side: DoubleSide,
-    depthWrite: false,
-    depthTest: true
-  }));
-
-  const texture = registerTexture(loader.load(splatGroundPatchUrl, (loaded) => {
-    loaded.colorSpace = SRGBColorSpace;
-    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
-    loaded.minFilter = LinearFilter;
-    loaded.magFilter = LinearFilter;
-    loaded.needsUpdate = true;
-    material.map = loaded;
-    material.needsUpdate = true;
-  }));
-  texture.colorSpace = SRGBColorSpace;
-
-  groundPatch = new Mesh(geometry, material);
-  groundPatch.name = 'splat-ground-underlay';
-  groundPatch.rotation.x = -Math.PI / 2;
-  // This is an underlay only: keep it below the Gaussian terrain volume so it
-  // fills gaps without visually climbing onto the splat surface.
-  groundPatch.position.set(0.0, -0.64, 3.05);
-  groundPatch.renderOrder = -20;
-  overlayRoot.add(groundPatch);
-}
-
 function createFlyingSpriteActor({
   textureUrl,
   position,
@@ -356,7 +319,6 @@ function createFlyingActors() {
   overlayRoot.name = 'splat-overlays';
   scene.add(overlayRoot);
 
-  createGroundPatch();
 
   const bees = [
     { textureUrl: beeRightUrl, position: [-1.14, 0.22, 2.48], scale: [0.17, 0.185], center: [0.5, 0.42], bob: 0.032, sway: 0.11, depth: 0.09, speed: 0.31, flutter: 0.08, phase: 0.4 },
@@ -474,15 +436,14 @@ function updateResponsive() {
   });
 }
 
-function getLookTarget(cameraPosition, depth, elapsed) {
+function fixedViewDirection() {
   const yaw = fixedYaw + manualYawOffset;
-  const forwardDistance = LOOK_AHEAD + Math.sin(elapsed * 0.012) * 0.12;
-  const lookHeight = LOOK_HEIGHT + manualPitchOffset * 0.42;
-  return cameraPosition.clone().add(new Vector3(
-    Math.sin(yaw) * forwardDistance,
-    lookHeight - cameraPosition.y,
-    Math.cos(yaw) * forwardDistance
-  ));
+  const pitch = MathUtils.clamp(fixedPitch + manualPitchOffset, -0.38, 0.25);
+  return new Vector3(
+    Math.sin(yaw) * Math.cos(pitch),
+    Math.sin(pitch),
+    Math.cos(yaw) * Math.cos(pitch)
+  ).normalize();
 }
 
 function updateCamera(delta, elapsed) {
@@ -490,19 +451,18 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.008 : 0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.018 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  const depth = MathUtils.lerp(0.0, 1.12, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.016) * 0.026 : 0;
-  const verticalBreath = props.slowDriftEnabled
-    ? Math.sin(elapsed * 0.018) * 0.008 + Math.sin(pingPong * Math.PI) * 0.026
-    : 0;
+  const depth = MathUtils.lerp(0.0, 2.18, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.028) * 0.028 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.024) * 0.012 : 0;
 
   camera.position.copy(CAMERA_HOME)
     .addScaledVector(CAMERA_FORWARD, depth)
     .addScaledVector(CAMERA_SIDE, sideSway);
   camera.position.y += verticalBreath;
-  camera.lookAt(getLookTarget(camera.position, depth, elapsed));
+  const direction = fixedViewDirection();
+  camera.lookAt(camera.position.clone().add(direction));
 
   if (skybox) skybox.position.copy(camera.position);
 
@@ -547,7 +507,7 @@ function handlePointerMove(event) {
   const dx = event.clientX - pointerStartX;
   const dy = event.clientY - pointerStartY;
   manualYawOffset = MathUtils.clamp(yawStart - dx * 0.0012, -0.18, 0.18);
-  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, MathUtils.degToRad(-10), MathUtils.degToRad(10));
+  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, -0.16, 0.16);
 }
 
 function endPointer(event) {

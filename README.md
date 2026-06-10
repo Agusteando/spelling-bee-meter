@@ -11,24 +11,9 @@ Vue + Three.js frontend for the Spelling Bee draw meter.
 
 The scene uses cache-versioned assets and a network-first service worker to prevent stale visual iterations.
 
-Latest pass 20260610-020500:
-- Kept the Gaussian splat as the default scene at origin with the existing slow fixed-angle depth travel.
-- Added a textured ground patch beneath the splat to fill visual holes using the provided image.
-- Placed a small set of animated bee and butterfly sprites across the splat space with gentle idle motion.
+Latest pass 20260610-024500:
+- Restored the previous working Gaussian splat PLY.
+- Removed the ground underlay/layer entirely.
+- Restored the original fixed camera angle and slow depth-travel path that kept the splat visible.
+- Kept bee and butterfly sprite overlays with idle motion.
 - Updated cache/build stamps for fresh asset delivery.
-
-Latest pass 20260610-021500:
-- Lowered the terrain patch so it acts as an underlay beneath the Gaussian splat rather than sitting on the visible surface.
-- Kept bee and butterfly overlays unchanged.
-- Updated cache/build stamps.
-
-Latest pass 20260610-022500:
-- Keeps the Gaussian splat and underlay intact.
-- Changes the camera path so it remains above the surface instead of plunging into the splat.
-- Uses a fixed upward-facing view of about 45 degrees with very slow forward/back travel.
-- Updates cache/build stamps.
-
-Latest pass 20260610-023500:
-- Reaimed the above-surface camera path toward the visible splat volume instead of pointing sky-only.
-- Kept slow fixed-angle depth travel without plunging below the reconstruction.
-- Updated cache stamp.
