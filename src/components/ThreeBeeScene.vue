@@ -50,7 +50,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-190500';
+const BUILD_STAMP = '20260610-194500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -92,19 +92,19 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.045, 1.92);
+const CAMERA_HOME = new Vector3(0.0, 0.042, 1.98);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 92;
+const SCENE_LOOP_SECONDS = 96;
 const UNDERLAY_CENTER_Z = 3.22;
 const UNDERLAY_FLOOR_Y = -1.32;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.045, 1.92], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
-  { t: 0.16, position: [0.06, 0.052, 2.08], yaw: 0.024, pitch: -0.013, fovOffset: -0.1 },
-  { t: 0.34, position: [0.14, 0.06, 2.34], yaw: 0.058, pitch: -0.014, fovOffset: -0.18 },
-  { t: 0.54, position: [0.045, 0.065, 2.64], yaw: 0.026, pitch: -0.012, fovOffset: -0.24 },
-  { t: 0.74, position: [-0.11, 0.058, 2.48], yaw: -0.045, pitch: -0.011, fovOffset: -0.18 },
-  { t: 0.9, position: [-0.055, 0.05, 2.14], yaw: -0.02, pitch: -0.012, fovOffset: -0.08 },
-  { t: 1, position: [0.0, 0.045, 1.92], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
+  { t: 0, position: [0.0, 0.042, 1.98], yaw: -0.006, pitch: -0.014, fovOffset: 0.0 },
+  { t: 0.16, position: [0.048, 0.058, 2.18], yaw: 0.014, pitch: -0.017, fovOffset: -0.1 },
+  { t: 0.34, position: [0.088, 0.084, 2.44], yaw: 0.025, pitch: -0.022, fovOffset: -0.2 },
+  { t: 0.5, position: [0.028, 0.064, 2.66], yaw: 0.012, pitch: -0.021, fovOffset: -0.26 },
+  { t: 0.68, position: [-0.074, 0.08, 2.42], yaw: -0.02, pitch: -0.018, fovOffset: -0.17 },
+  { t: 0.86, position: [-0.03, 0.05, 2.12], yaw: -0.01, pitch: -0.015, fovOffset: -0.06 },
+  { t: 1, position: [0.0, 0.042, 1.98], yaw: -0.006, pitch: -0.014, fovOffset: 0.0 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -114,6 +114,14 @@ const butterflyActors = [];
 const beeActors = [];
 const cameraPathPosition = new Vector3();
 const cameraPathTargetPosition = new Vector3();
+const cameraLookTarget = new Vector3();
+const beeVector = new Vector3();
+const beeSampleVector = new Vector3();
+let butterflyUpperWingGeometry;
+let butterflyLowerWingGeometry;
+let butterflyUpperAccentGeometry;
+let butterflyLowerAccentGeometry;
+let butterflyBodyGeometry;
 let cameraPathYaw = fixedYaw;
 let cameraPathPitch = fixedPitch;
 let cameraPathFovOffset = 0;
@@ -139,7 +147,7 @@ function disposeTree(object) {
 }
 
 function createSkybox() {
-  const geometry = registerDisposable(new SphereGeometry(260, 160, 80));
+  const geometry = registerDisposable(new SphereGeometry(260, 96, 48));
   const material = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
     side: BackSide,
@@ -244,7 +252,7 @@ function createParticlePoints() {
     drifts.push(drift);
   };
 
-  for (let i = 0; i < 340; i += 1) {
+  for (let i = 0; i < 220; i += 1) {
     addPoint({
       x: MathUtils.randFloatSpread(5.4),
       y: MathUtils.randFloat(-1.0, 1.45),
@@ -255,7 +263,7 @@ function createParticlePoints() {
     });
   }
 
-  for (let i = 0; i < 18; i += 1) {
+  for (let i = 0; i < 10; i += 1) {
     addPoint({
       x: MathUtils.randFloatSpread(4.2),
       y: MathUtils.randFloat(-0.4, 1.15),
@@ -280,7 +288,7 @@ function createParticlePoints() {
 }
 
 
-function createSealedUnderlayGeometry({ width = 4.12, depth = 2.58, floorSegmentsX = 32, floorSegmentsZ = 26 } = {}) {
+function createSealedUnderlayGeometry({ width = 4.12, depth = 2.58, floorSegmentsX = 24, floorSegmentsZ = 18 } = {}) {
   const positions = [];
   const uvs = [];
   const indices = [];
@@ -408,40 +416,74 @@ const FLOWER_PATCHES = [
 ];
 
 const BUTTERFLY_PALETTE = [
-  { top: '#f39ac9', bottom: '#ffd36b' },
-  { top: '#7bd6de', bottom: '#b2f1f4' },
-  { top: '#f3c96d', bottom: '#f8e8aa' },
-  { top: '#bda4ff', bottom: '#e1d3ff' },
-  { top: '#ff9b7c', bottom: '#ffd3b8' },
-  { top: '#8fd27a', bottom: '#d8f1a9' },
-  { top: '#78c7ff', bottom: '#c6ebff' },
-  { top: '#ef89b7', bottom: '#ffd4e5' }
+  { top: '#f278a8', bottom: '#ffd55f', accent: '#fff4b8' },
+  { top: '#76cfe1', bottom: '#d5f6ff', accent: '#ffffff' },
+  { top: '#8d89ff', bottom: '#ddd7ff', accent: '#fff2a2' },
+  { top: '#ff9f73', bottom: '#ffe0bf', accent: '#fff6d2' },
+  { top: '#8bcf6f', bottom: '#daf4ad', accent: '#fff6c8' },
+  { top: '#e77bc0', bottom: '#ffd7ee', accent: '#ffffff' }
 ];
 
-function createTriangleGeometry(points) {
+function createIndexedGeometry(points, indices) {
   const geometry = registerDisposable(new BufferGeometry());
-  geometry.setAttribute('position', new Float32BufferAttribute(points.flat(), 3));
-  geometry.setIndex([0, 1, 2]);
+  geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+  geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
 }
 
 function createBodyGeometry() {
-  const geometry = registerDisposable(new BufferGeometry());
-  geometry.setAttribute('position', new Float32BufferAttribute([
-    -0.01, 0.14, 0,
-     0.01, 0.14, 0,
-    -0.012, -0.15, 0,
-     0.012, -0.15, 0
-  ], 3));
-  geometry.setIndex([0, 2, 1, 1, 2, 3]);
-  geometry.computeVertexNormals();
-  return geometry;
+  return createIndexedGeometry([
+    -0.012, 0.16, 0,
+     0.012, 0.16, 0,
+    -0.016, -0.15, 0,
+     0.016, -0.15, 0
+  ], [0, 2, 1, 1, 2, 3]);
+}
+
+function createButterflyWingGeometry(kind = 'upper') {
+  if (kind === 'upper') {
+    return createIndexedGeometry([
+      0.0, 0.0, 0,
+      0.065, 0.11, 0,
+      0.16, 0.13, 0,
+      0.225, 0.05, 0,
+      0.185, -0.02, 0,
+      0.08, -0.03, 0
+    ], [0, 1, 5, 1, 2, 4, 1, 4, 5, 2, 3, 4]);
+  }
+
+  return createIndexedGeometry([
+    0.0, -0.004, 0,
+    0.06, -0.02, 0,
+    0.145, -0.06, 0,
+    0.13, -0.165, 0,
+    0.042, -0.12, 0
+  ], [0, 1, 4, 1, 2, 3, 1, 3, 4]);
+}
+
+function createButterflyAccentGeometry(kind = 'upper') {
+  if (kind === 'upper') {
+    return createIndexedGeometry([
+      0.025, 0.02, 0,
+      0.08, 0.075, 0,
+      0.14, 0.065, 0,
+      0.12, 0.01, 0,
+      0.055, -0.005, 0
+    ], [0, 1, 4, 1, 2, 3, 1, 3, 4]);
+  }
+
+  return createIndexedGeometry([
+      0.02, -0.02, 0,
+      0.07, -0.04, 0,
+      0.105, -0.11, 0,
+      0.048, -0.085, 0
+    ], [0, 1, 3, 1, 2, 3]);
 }
 
 function configureTexture(texture, repeatX = 1, repeatY = 1) {
   texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+  texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 4);
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
   texture.wrapS = RepeatWrapping;
@@ -450,65 +492,72 @@ function configureTexture(texture, repeatX = 1, repeatY = 1) {
   texture.needsUpdate = true;
 }
 
-function createButterflyActor({ position, scale = 0.14, palette, phase = 0, bob = 0.016, sway = 0.038, depth = 0.032, flapSpeed = 13, wingBias = 0 }) {
+function ensureButterflyGeometry() {
+  butterflyUpperWingGeometry ??= createButterflyWingGeometry('upper');
+  butterflyLowerWingGeometry ??= createButterflyWingGeometry('lower');
+  butterflyUpperAccentGeometry ??= createButterflyAccentGeometry('upper');
+  butterflyLowerAccentGeometry ??= createButterflyAccentGeometry('lower');
+  butterflyBodyGeometry ??= createBodyGeometry();
+}
+
+function createButterflyActor({ position, scale = 0.1, palette, phase = 0, bob = 0.012, sway = 0.026, depth = 0.018, flapSpeed = 11.5, wingBias = 0 }) {
+  ensureButterflyGeometry();
   const root = new Group();
   root.position.set(position[0], position[1], position[2]);
   root.renderOrder = 42;
   overlayRoot.add(root);
 
-  const upperWingGeometry = createTriangleGeometry([
-    [0, 0.01, 0],
-    [0.13, 0.1, 0],
-    [0.16, -0.01, 0]
-  ]);
-  const lowerWingGeometry = createTriangleGeometry([
-    [0, -0.01, 0],
-    [0.11, -0.03, 0],
-    [0.13, -0.13, 0]
-  ]);
-  const bodyGeometry = createBodyGeometry();
-
-  const createWingMaterial = (color) => registerDisposable(new MeshBasicMaterial({
+  const makeMaterial = (color, opacity = 0.98) => registerDisposable(new MeshBasicMaterial({
     color,
     side: DoubleSide,
     transparent: true,
-    opacity: 0.96,
+    opacity,
     depthWrite: false,
     depthTest: true
   }));
 
-  const leftUpper = new Mesh(upperWingGeometry, createWingMaterial(palette.top));
-  const rightUpper = new Mesh(upperWingGeometry, createWingMaterial(palette.top));
-  const leftLower = new Mesh(lowerWingGeometry, createWingMaterial(palette.bottom));
-  const rightLower = new Mesh(lowerWingGeometry, createWingMaterial(palette.bottom));
-  const body = new Mesh(bodyGeometry, registerDisposable(new MeshBasicMaterial({
-    color: '#47371c',
-    side: DoubleSide,
-    transparent: true,
-    opacity: 0.98,
-    depthWrite: false,
-    depthTest: true
-  })));
+  const createWingSet = (side) => {
+    const sign = side === 'left' ? -1 : 1;
+    const upperPivot = new Group();
+    const lowerPivot = new Group();
+    upperPivot.position.set(0, 0.012, 0);
+    lowerPivot.position.set(0, -0.005, 0);
+    root.add(upperPivot, lowerPivot);
 
-  leftUpper.scale.x = -1;
-  leftLower.scale.x = -1;
+    const upperWing = new Mesh(butterflyUpperWingGeometry, makeMaterial(palette.top));
+    const upperAccent = new Mesh(butterflyUpperAccentGeometry, makeMaterial(palette.accent, 0.9));
+    const lowerWing = new Mesh(butterflyLowerWingGeometry, makeMaterial(palette.bottom));
+    const lowerAccent = new Mesh(butterflyLowerAccentGeometry, makeMaterial(palette.accent, 0.84));
 
-  [leftUpper, rightUpper, leftLower, rightLower, body].forEach((part) => {
-    part.renderOrder = 42;
-    root.add(part);
-  });
+    [upperWing, upperAccent, lowerWing, lowerAccent].forEach((part) => {
+      part.scale.x = sign;
+      part.renderOrder = 42;
+      part.position.z = side === 'left' ? 0.0015 : -0.0015;
+    });
+    upperAccent.position.z += 0.001;
+    lowerAccent.position.z += 0.001;
 
-  body.position.z = 0.002;
+    upperPivot.add(upperWing, upperAccent);
+    lowerPivot.add(lowerWing, lowerAccent);
+    return { upperPivot, lowerPivot };
+  };
+
+  const left = createWingSet('left');
+  const right = createWingSet('right');
+  const body = new Mesh(butterflyBodyGeometry, makeMaterial('#4a371f'));
+  body.renderOrder = 43;
+  body.position.z = 0.003;
+  root.add(body);
   root.scale.setScalar(scale);
 
   butterflyActors.push({
     root,
-    leftUpper,
-    rightUpper,
-    leftLower,
-    rightLower,
+    body,
+    leftUpperPivot: left.upperPivot,
+    leftLowerPivot: left.lowerPivot,
+    rightUpperPivot: right.upperPivot,
+    rightLowerPivot: right.lowerPivot,
     basePosition: root.position.clone(),
-    scale,
     bob,
     sway,
     depth,
@@ -524,7 +573,7 @@ function loadBeeTexture(url) {
   return texture;
 }
 
-function createBeeActor({ route, phase = 0, scale = 0.052, speed = 1, collectRadius = 0.072, travelLift = 0.08, curve = 0.09, bob = 0.018 }) {
+function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadius = 0.072, travelLift = 0.08, curve = 0.09, bob = 0.018 }) {
   const material = registerDisposable(new SpriteMaterial({
     color: '#ffffff',
     transparent: true,
@@ -556,6 +605,7 @@ function createBeeActor({ route, phase = 0, scale = 0.052, speed = 1, collectRad
     bob,
     currentTexture: beeRightTexture,
     lastPosition: startPatch.clone(),
+    samplePosition: startPatch.clone(),
     lastDirectionX: 1
   });
 }
@@ -569,40 +619,37 @@ function createFlyingActors() {
   beeLeftTexture = loadBeeTexture(beeLeftUrl);
 
   const butterflyPlacements = [
-    [-1.92, -0.56, 2.12], [-1.58, -0.54, 2.42], [-1.18, -0.52, 2.76],
-    [-0.72, -0.56, 3.02], [-0.32, -0.53, 3.38], [0.12, -0.55, 3.72],
-    [0.58, -0.5, 3.98], [1.02, -0.54, 4.24], [1.46, -0.48, 4.52],
-    [0.84, -0.51, 4.68], [0.18, -0.52, 4.12], [-0.48, -0.5, 3.84],
-    [-1.32, -0.49, 3.38], [1.78, -0.46, 4.86]
+    [-1.82, -0.58, 2.18], [-1.42, -0.56, 2.54], [-0.96, -0.54, 2.9],
+    [-0.5, -0.57, 3.26], [-0.04, -0.55, 3.62], [0.42, -0.56, 3.96],
+    [0.86, -0.52, 4.22], [1.28, -0.49, 4.46], [0.72, -0.53, 4.58],
+    [0.08, -0.54, 4.02], [-0.82, -0.52, 3.4], [1.62, -0.47, 4.74]
   ];
 
   butterflyPlacements.forEach((position, index) => {
     createButterflyActor({
       position,
-      scale: 0.112 + (index % 3) * 0.012,
+      scale: 0.084 + (index % 3) * 0.008,
       palette: BUTTERFLY_PALETTE[index % BUTTERFLY_PALETTE.length],
-      phase: index * 0.61,
-      bob: 0.01 + (index % 4) * 0.002,
-      sway: 0.018 + (index % 5) * 0.004,
-      depth: 0.014 + (index % 3) * 0.004,
-      flapSpeed: 10.5 + (index % 6) * 0.85,
-      wingBias: (index % 2 === 0 ? 1 : -1) * 0.08
+      phase: index * 0.52,
+      bob: 0.008 + (index % 4) * 0.0015,
+      sway: 0.014 + (index % 4) * 0.003,
+      depth: 0.01 + (index % 3) * 0.003,
+      flapSpeed: 9.5 + (index % 5) * 0.7,
+      wingBias: (index % 2 === 0 ? 1 : -1) * 0.03
     });
   });
 
   const beeConfigs = [
-    { route: [0, 1, 2], phase: 0.02, scale: 0.046, speed: 0.86, collectRadius: 0.062, travelLift: 0.07, curve: 0.082 },
-    { route: [1, 2, 4], phase: 0.15, scale: 0.044, speed: 0.93, collectRadius: 0.066, travelLift: 0.075, curve: -0.088 },
-    { route: [2, 3, 5], phase: 0.28, scale: 0.045, speed: 0.9, collectRadius: 0.058, travelLift: 0.068, curve: 0.084 },
-    { route: [3, 4, 6], phase: 0.39, scale: 0.043, speed: 0.88, collectRadius: 0.06, travelLift: 0.072, curve: -0.08 },
-    { route: [4, 5, 7], phase: 0.5, scale: 0.045, speed: 0.95, collectRadius: 0.064, travelLift: 0.08, curve: 0.092 },
-    { route: [5, 6, 7], phase: 0.61, scale: 0.042, speed: 0.9, collectRadius: 0.059, travelLift: 0.07, curve: -0.082 },
-    { route: [0, 2, 8], phase: 0.74, scale: 0.044, speed: 0.91, collectRadius: 0.063, travelLift: 0.074, curve: 0.086 },
-    { route: [8, 3, 1], phase: 0.83, scale: 0.043, speed: 0.87, collectRadius: 0.057, travelLift: 0.071, curve: -0.09 },
-    { route: [2, 5, 6], phase: 0.91, scale: 0.041, speed: 0.97, collectRadius: 0.056, travelLift: 0.078, curve: 0.084 },
-    { route: [1, 4, 7], phase: 0.08, scale: 0.044, speed: 0.89, collectRadius: 0.06, travelLift: 0.075, curve: -0.087 },
-    { route: [3, 6, 5], phase: 0.22, scale: 0.042, speed: 0.94, collectRadius: 0.055, travelLift: 0.073, curve: 0.083 },
-    { route: [0, 3, 4], phase: 0.57, scale: 0.043, speed: 0.92, collectRadius: 0.061, travelLift: 0.076, curve: -0.085 }
+    { route: [0, 1, 2], phase: 0.02, scale: 0.044, speed: 0.86, collectRadius: 0.058, travelLift: 0.068, curve: 0.08 },
+    { route: [1, 2, 4], phase: 0.15, scale: 0.042, speed: 0.93, collectRadius: 0.062, travelLift: 0.072, curve: -0.082 },
+    { route: [2, 3, 5], phase: 0.28, scale: 0.043, speed: 0.9, collectRadius: 0.056, travelLift: 0.066, curve: 0.078 },
+    { route: [3, 4, 6], phase: 0.39, scale: 0.041, speed: 0.88, collectRadius: 0.058, travelLift: 0.07, curve: -0.076 },
+    { route: [4, 5, 7], phase: 0.5, scale: 0.043, speed: 0.95, collectRadius: 0.061, travelLift: 0.076, curve: 0.086 },
+    { route: [5, 6, 7], phase: 0.61, scale: 0.04, speed: 0.9, collectRadius: 0.056, travelLift: 0.068, curve: -0.078 },
+    { route: [0, 2, 8], phase: 0.74, scale: 0.042, speed: 0.91, collectRadius: 0.06, travelLift: 0.072, curve: 0.082 },
+    { route: [8, 3, 1], phase: 0.83, scale: 0.041, speed: 0.87, collectRadius: 0.054, travelLift: 0.069, curve: -0.084 },
+    { route: [2, 5, 6], phase: 0.91, scale: 0.04, speed: 0.97, collectRadius: 0.053, travelLift: 0.074, curve: 0.078 },
+    { route: [1, 4, 7], phase: 0.08, scale: 0.042, speed: 0.89, collectRadius: 0.058, travelLift: 0.072, curve: -0.082 }
   ];
 
   beeConfigs.forEach(createBeeActor);
@@ -612,73 +659,73 @@ function updateButterflies(loopTime) {
   if (!butterflyActors.length || !camera) return;
 
   butterflyActors.forEach((actor, index) => {
-    const t = loopTime * (0.22 + index * 0.002) + actor.phase;
+    const t = loopTime * (0.2 + index * 0.002) + actor.phase;
     actor.root.quaternion.copy(camera.quaternion);
+    actor.root.rotateZ(Math.sin(t * 0.45) * 0.06);
     actor.root.position.set(
-      actor.basePosition.x + Math.sin(t * 0.9) * actor.sway,
-      actor.basePosition.y + Math.sin(t * 1.8) * actor.bob,
-      actor.basePosition.z + Math.cos(t * 0.75) * actor.depth
+      actor.basePosition.x + Math.sin(t * 0.82) * actor.sway,
+      actor.basePosition.y + Math.sin(t * 1.55) * actor.bob,
+      actor.basePosition.z + Math.cos(t * 0.68) * actor.depth
     );
 
-    const flap = 0.26 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.95;
-    const lowerFlap = flap * 0.72;
+    const flap = 0.22 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.72;
+    const lowerFlap = flap * 0.56;
 
-    actor.leftUpper.rotation.y = flap + actor.wingBias;
-    actor.rightUpper.rotation.y = -flap - actor.wingBias;
-    actor.leftLower.rotation.y = lowerFlap + actor.wingBias * 0.65;
-    actor.rightLower.rotation.y = -lowerFlap - actor.wingBias * 0.65;
-
-    actor.leftUpper.rotation.z = 0.18;
-    actor.rightUpper.rotation.z = -0.18;
-    actor.leftLower.rotation.z = -0.08;
-    actor.rightLower.rotation.z = 0.08;
+    actor.leftUpperPivot.rotation.y = flap + actor.wingBias;
+    actor.rightUpperPivot.rotation.y = -flap - actor.wingBias;
+    actor.leftLowerPivot.rotation.y = lowerFlap + actor.wingBias * 0.7;
+    actor.rightLowerPivot.rotation.y = -lowerFlap - actor.wingBias * 0.7;
+    actor.leftUpperPivot.rotation.z = 0.14;
+    actor.rightUpperPivot.rotation.z = -0.14;
+    actor.leftLowerPivot.rotation.z = -0.06;
+    actor.rightLowerPivot.rotation.z = 0.06;
+    actor.body.rotation.z = Math.sin(t * 0.9) * 0.08;
   });
 }
 
-function sampleBeeSegment(actor, loopProgress, offset = 0) {
+function sampleBeeSegment(actor, loopProgress, target) {
   const routeLength = actor.route.length;
-  const cycle = (((loopProgress * actor.speed) + actor.phase + offset) % 1 + 1) % 1;
+  const cycle = (((loopProgress * actor.speed) + actor.phase) % 1 + 1) % 1;
   const scaled = cycle * routeLength;
   const segmentIndex = Math.floor(scaled) % routeLength;
   const local = scaled - Math.floor(scaled);
   const from = FLOWER_PATCHES[actor.route[segmentIndex]];
   const to = FLOWER_PATCHES[actor.route[(segmentIndex + 1) % routeLength]];
-  const vector = to.clone().sub(from);
-  const flatLength = Math.max(Math.hypot(vector.x, vector.z), 0.0001);
-  const normalX = -vector.z / flatLength;
-  const normalZ = vector.x / flatLength;
+  beeVector.subVectors(to, from);
+  const flatLength = Math.max(Math.hypot(beeVector.x, beeVector.z), 0.0001);
+  const normalX = -beeVector.z / flatLength;
+  const normalZ = beeVector.x / flatLength;
 
-  const collectPortion = 0.28;
-  const transitEnd = 0.78;
-  const point = new Vector3();
+  const collectPortion = 0.3;
+  const transitEnd = 0.8;
 
   if (local < collectPortion) {
     const u = local / collectPortion;
     const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 4;
-    point.copy(from);
-    point.x += Math.cos(angle) * actor.collectRadius;
-    point.z += Math.sin(angle * 1.08) * actor.collectRadius * 0.72;
-    point.y += Math.sin(angle * 2.0) * actor.bob;
-    return point;
+    target.copy(from);
+    target.x += Math.cos(angle) * actor.collectRadius;
+    target.z += Math.sin(angle * 1.06) * actor.collectRadius * 0.7;
+    target.y += Math.sin(angle * 2.0) * actor.bob;
+    return target;
   }
 
   if (local < transitEnd) {
     const u = (local - collectPortion) / (transitEnd - collectPortion);
     const eased = MathUtils.smoothstep(u, 0, 1);
-    point.lerpVectors(from, to, eased);
-    point.x += Math.sin(u * Math.PI) * actor.curve * normalX;
-    point.z += Math.sin(u * Math.PI) * actor.curve * normalZ;
-    point.y += Math.sin(u * Math.PI) * actor.travelLift;
-    return point;
+    target.copy(from).lerp(to, eased);
+    target.x += Math.sin(u * Math.PI) * actor.curve * normalX;
+    target.z += Math.sin(u * Math.PI) * actor.curve * normalZ;
+    target.y += Math.sin(u * Math.PI) * actor.travelLift;
+    return target;
   }
 
   const u = (local - transitEnd) / (1 - transitEnd);
   const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 3 + Math.PI * 0.4;
-  point.copy(to);
-  point.x += Math.cos(angle) * actor.collectRadius * 0.88;
-  point.z += Math.sin(angle * 1.12) * actor.collectRadius * 0.66;
-  point.y += Math.cos(angle * 2.0) * actor.bob * 0.9;
-  return point;
+  target.copy(to);
+  target.x += Math.cos(angle) * actor.collectRadius * 0.86;
+  target.z += Math.sin(angle * 1.1) * actor.collectRadius * 0.64;
+  target.y += Math.cos(angle * 2.0) * actor.bob * 0.9;
+  return target;
 }
 
 function updateBees(loopTime) {
@@ -686,17 +733,17 @@ function updateBees(loopTime) {
   const loopProgress = loopTime / SCENE_LOOP_SECONDS;
 
   beeActors.forEach((actor) => {
-    const position = sampleBeeSegment(actor, loopProgress);
-    const previous = actor.lastPosition.clone();
-    const velocity = position.clone().sub(previous);
-    const directionX = Math.abs(velocity.x) > 0.0005 ? Math.sign(velocity.x) : actor.lastDirectionX;
+    const position = sampleBeeSegment(actor, loopProgress, actor.samplePosition);
+    const velocityX = position.x - actor.lastPosition.x;
+    const velocityY = position.y - actor.lastPosition.y;
+    const directionX = Math.abs(velocityX) > 0.0005 ? Math.sign(velocityX) : actor.lastDirectionX;
 
     actor.sprite.position.copy(position);
 
     const wingPulse = 1 + Math.sin(loopTime * 16 * actor.speed + actor.phase * Math.PI * 4) * 0.12;
     const bodySqueeze = 1 + Math.cos(loopTime * 12 * actor.speed + actor.phase * Math.PI * 3) * 0.08;
     actor.sprite.scale.set(actor.baseScale.x * wingPulse, actor.baseScale.y * bodySqueeze, 1);
-    actor.sprite.material.rotation = MathUtils.clamp(velocity.y * 3.2, -0.24, 0.24);
+    actor.sprite.material.rotation = MathUtils.clamp(velocityY * 3.2, -0.22, 0.22);
 
     const targetTexture = directionX >= 0 ? beeRightTexture : beeLeftTexture;
     if (actor.currentTexture !== targetTexture) {
@@ -705,7 +752,7 @@ function updateBees(loopTime) {
       actor.currentTexture = targetTexture;
     }
 
-    actor.material.opacity = 0.92 + Math.sin(loopTime * 5.0 + actor.phase * Math.PI * 3) * 0.06;
+    actor.material.opacity = 0.93 + Math.sin(loopTime * 5.0 + actor.phase * Math.PI * 3) * 0.05;
     actor.lastPosition.copy(position);
     actor.lastDirectionX = directionX || actor.lastDirectionX;
   });
@@ -730,8 +777,8 @@ function createSplatScene() {
     url: SPLAT_URL,
     lod: true,
     enableLod: true,
-    lodScale: 1.25,
-    maxSplats: 1180000,
+    lodScale: 1.85,
+    maxSplats: 680000,
     onLoad: () => {
       if (disposed) return;
       splatLoading.value = false;
@@ -763,8 +810,8 @@ function createScene() {
   sparkRenderer = new SparkRenderer({
     renderer,
     clock,
-    maxPixelRadius: 260,
-    minPixelRadius: 0.15,
+    maxPixelRadius: 220,
+    minPixelRadius: 0.22,
     minAlpha: 0.5 / 255,
     onDirty: () => null
   });
@@ -785,7 +832,7 @@ function updateResponsive() {
   viewHeight = Math.max(320, rect.height || window.innerHeight);
   const aspect = viewWidth / Math.max(viewHeight, 1);
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.3 : 1.55));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 0.95 : 1.2));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
   targetFov = aspect < 0.72 ? 66 : aspect > 1.9 ? 54 : 58;
@@ -844,14 +891,15 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0035 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.0025 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0028 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.002 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);
   camera.position.y += verticalBreath;
   const direction = fixedViewDirection(cameraPathYaw, cameraPathPitch);
-  camera.lookAt(camera.position.clone().add(direction));
+  cameraLookTarget.copy(camera.position).add(direction);
+  camera.lookAt(cameraLookTarget);
 
   if (skybox) skybox.position.copy(camera.position);
 
@@ -926,7 +974,7 @@ watch(() => props.splatEnabled, updateSplatVisibility);
 
 onMounted(() => {
   disposed = false;
-  renderer = new WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+  renderer = new WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.setClearColor(0xfff0c8, 1);
   mount.value.appendChild(renderer.domElement);
