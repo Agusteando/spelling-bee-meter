@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-014500';
+const BUILD_STAMP = '20260611-020500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SPLAT_FALLBACK_URL = `/splats/reference.ply?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
@@ -105,16 +105,17 @@ const CAMERA_NEAR_Z = CAMERA_HOME.z;
 const CAMERA_FAR_Z = 9.4;
 const CAMERA_PATH_CURVE = new CatmullRomCurve3([
   CAMERA_HOME.clone(),
-  new Vector3(0.06, -0.066, 2.78),
-  new Vector3(0.28, -0.108, 4.38),
-  new Vector3(0.64, -0.034, 5.98),
-  new Vector3(0.88, 0.16, 7.35),
-  new Vector3(0.46, 0.42, 8.75),
-  new Vector3(-0.34, 0.54, 9.4),
-  new Vector3(-0.56, 0.34, 8.05),
-  new Vector3(-0.28, 0.1, 5.35),
-  new Vector3(-0.04, -0.018, 3.0)
-], true, 'catmullrom', 0.3);
+  new Vector3(0.0, -0.05, 2.18),
+  new Vector3(0.04, -0.17, 2.92),
+  new Vector3(0.12, -0.1, 3.72),
+  new Vector3(0.36, 0.04, 5.32),
+  new Vector3(0.78, 0.2, 6.9),
+  new Vector3(0.5, 0.46, 8.62),
+  new Vector3(-0.22, 0.56, 9.4),
+  new Vector3(-0.48, 0.34, 8.08),
+  new Vector3(-0.24, 0.1, 5.35),
+  new Vector3(-0.03, -0.018, 3.0)
+], true, 'catmullrom', 0.28);
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -846,16 +847,18 @@ function sampleGaussianCameraTrajectory(progress) {
   CAMERA_PATH_CURVE.getPointAt(p, cameraPathPosition);
 
   const depthProgress = MathUtils.clamp((cameraPathPosition.z - CAMERA_NEAR_Z) / (CAMERA_FAR_Z - CAMERA_NEAR_Z), 0, 1);
-  const earlyGuard = MathUtils.smoothstep(p, 0.08, 0.22);
-  const sideLook = -cameraPathPosition.x * 0.18;
-  const deliberateSweep = Math.sin(phase - 0.32) * 0.042 * Math.sin(p * Math.PI) * earlyGuard;
-  cameraPathYaw = MathUtils.clamp((sideLook + deliberateSweep) * (0.55 + earlyGuard * 0.45), -0.26, 0.28);
+  const neutralIntro = 1 - MathUtils.smoothstep(p, 0.012, 0.055);
+  const earlyAntView = MathUtils.smoothstep(p, 0.045, 0.105) * (1 - MathUtils.smoothstep(p, 0.18, 0.32));
+  const earlyGuard = MathUtils.smoothstep(p, 0.1, 0.24);
+  const sideLook = -cameraPathPosition.x * 0.16;
+  const deliberateSweep = Math.sin(phase - 0.2) * 0.038 * Math.sin(p * Math.PI) * earlyGuard;
+  cameraPathYaw = MathUtils.clamp((sideLook + deliberateSweep) * (0.45 + earlyGuard * 0.55) * (1 - neutralIntro), -0.24, 0.27);
   cameraPathPitch = MathUtils.clamp(
-    MathUtils.lerp(0.02, 0.088, depthProgress) + Math.sin(phase * 0.5) * 0.01,
-    -0.02,
-    0.1
+    MathUtils.lerp(0.012, 0.088, depthProgress) + earlyAntView * 0.056 + Math.sin(phase * 0.5) * 0.008 * (1 - neutralIntro),
+    -0.018,
+    0.126
   );
-  cameraPathFovOffset = MathUtils.lerp(0.35, -0.75, depthProgress);
+  cameraPathFovOffset = MathUtils.lerp(0.3, -0.75, depthProgress) - earlyAntView * 0.18;
 }
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
