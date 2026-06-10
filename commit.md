@@ -1,1 +1,1 @@
-Optimizar el rendimiento, suavizar una cámara frontal con avance y retroceso curvos, y rediseñar las mariposas con una silueta más limpia
+Actualizar el video de introducción, retirar la capa de césped y hacer visible la trayectoria frontal de cámara con avance y retroceso curvos

@@ -10,6 +10,7 @@ import {
   AdditiveBlending,
   AmbientLight,
   BackSide,
+  CanvasTexture,
   BufferGeometry,
   Clock,
   Color,
@@ -50,10 +51,9 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-194500';
+const BUILD_STAMP = '20260610-203000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
-const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
 const SKYBOX_REPEAT_X = 4.05;
 const SKYBOX_REPEAT_Y = 3.0;
 
@@ -75,7 +75,6 @@ let overlayRoot;
 let splatRoot;
 let splatMesh;
 let particleSystem;
-let groundUnderlay;
 let beeRightTexture;
 let beeLeftTexture;
 let pointerDown = false;
@@ -92,19 +91,17 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.042, 1.98);
+const CAMERA_HOME = new Vector3(0.0, 0.035, 1.74);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 96;
-const UNDERLAY_CENTER_Z = 3.22;
-const UNDERLAY_FLOOR_Y = -1.32;
+const SCENE_LOOP_SECONDS = 56;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.042, 1.98], yaw: -0.006, pitch: -0.014, fovOffset: 0.0 },
-  { t: 0.16, position: [0.048, 0.058, 2.18], yaw: 0.014, pitch: -0.017, fovOffset: -0.1 },
-  { t: 0.34, position: [0.088, 0.084, 2.44], yaw: 0.025, pitch: -0.022, fovOffset: -0.2 },
-  { t: 0.5, position: [0.028, 0.064, 2.66], yaw: 0.012, pitch: -0.021, fovOffset: -0.26 },
-  { t: 0.68, position: [-0.074, 0.08, 2.42], yaw: -0.02, pitch: -0.018, fovOffset: -0.17 },
-  { t: 0.86, position: [-0.03, 0.05, 2.12], yaw: -0.01, pitch: -0.015, fovOffset: -0.06 },
-  { t: 1, position: [0.0, 0.042, 1.98], yaw: -0.006, pitch: -0.014, fovOffset: 0.0 }
+  { t: 0, position: [0.0, 0.035, 1.74], yaw: -0.004, pitch: -0.016, fovOffset: 1.5 },
+  { t: 0.14, position: [0.055, 0.085, 2.12], yaw: 0.012, pitch: -0.02, fovOffset: 0.3 },
+  { t: 0.32, position: [0.095, 0.165, 2.72], yaw: 0.022, pitch: -0.026, fovOffset: -2.2 },
+  { t: 0.48, position: [0.02, 0.11, 3.12], yaw: 0.006, pitch: -0.024, fovOffset: -3.2 },
+  { t: 0.64, position: [-0.09, 0.18, 2.62], yaw: -0.018, pitch: -0.026, fovOffset: -1.6 },
+  { t: 0.82, position: [-0.045, 0.075, 2.04], yaw: -0.012, pitch: -0.019, fovOffset: 0.8 },
+  { t: 1, position: [0.0, 0.035, 1.74], yaw: -0.004, pitch: -0.016, fovOffset: 1.5 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -116,12 +113,6 @@ const cameraPathPosition = new Vector3();
 const cameraPathTargetPosition = new Vector3();
 const cameraLookTarget = new Vector3();
 const beeVector = new Vector3();
-const beeSampleVector = new Vector3();
-let butterflyUpperWingGeometry;
-let butterflyLowerWingGeometry;
-let butterflyUpperAccentGeometry;
-let butterflyLowerAccentGeometry;
-let butterflyBodyGeometry;
 let cameraPathYaw = fixedYaw;
 let cameraPathPitch = fixedPitch;
 let cameraPathFovOffset = 0;
@@ -288,121 +279,6 @@ function createParticlePoints() {
 }
 
 
-function createSealedUnderlayGeometry({ width = 4.12, depth = 2.58, floorSegmentsX = 24, floorSegmentsZ = 18 } = {}) {
-  const positions = [];
-  const uvs = [];
-  const indices = [];
-  const halfWidth = width / 2;
-  const halfDepth = depth / 2;
-  const rimLift = 0.12;
-  const wallTop = 0.38;
-  const wallLean = 0.24;
-
-  const pushVertex = (x, y, z, u, v) => {
-    positions.push(x, y, z);
-    uvs.push(u, v);
-    return positions.length / 3 - 1;
-  };
-
-  for (let zIndex = 0; zIndex <= floorSegmentsZ; zIndex += 1) {
-    const vz = zIndex / floorSegmentsZ;
-    const nz = vz * 2 - 1;
-
-    for (let xIndex = 0; xIndex <= floorSegmentsX; xIndex += 1) {
-      const ux = xIndex / floorSegmentsX;
-      const nx = ux * 2 - 1;
-      const edge = Math.max(Math.abs(nx), Math.abs(nz));
-      const lift = Math.pow(MathUtils.smoothstep(edge, 0.64, 1), 2.15) * rimLift;
-      pushVertex(nx * halfWidth, lift, nz * halfDepth, ux, vz);
-    }
-  }
-
-  for (let zIndex = 0; zIndex < floorSegmentsZ; zIndex += 1) {
-    for (let xIndex = 0; xIndex < floorSegmentsX; xIndex += 1) {
-      const row = floorSegmentsX + 1;
-      const a = zIndex * row + xIndex;
-      const b = a + 1;
-      const c = a + row;
-      const d = c + 1;
-      indices.push(a, c, b, b, c, d);
-    }
-  }
-
-  const addWallStrip = ({ side, segments }) => {
-    const start = positions.length / 3;
-
-    for (let index = 0; index <= segments; index += 1) {
-      const t = index / segments;
-      const n = t * 2 - 1;
-      const curvedTop = wallTop - Math.sin(t * Math.PI) * 0.08;
-
-      if (side === 'left' || side === 'right') {
-        const sign = side === 'left' ? -1 : 1;
-        const z = n * halfDepth;
-        pushVertex(sign * halfWidth, rimLift, z, t, 0);
-        pushVertex(sign * (halfWidth - wallLean), curvedTop, z, t, 1);
-      } else {
-        const sign = side === 'front' ? -1 : 1;
-        const x = n * halfWidth;
-        pushVertex(x, rimLift, sign * halfDepth, t, 0);
-        pushVertex(x, curvedTop, sign * (halfDepth - wallLean), t, 1);
-      }
-    }
-
-    for (let index = 0; index < segments; index += 1) {
-      const a = start + index * 2;
-      const b = a + 1;
-      const c = a + 2;
-      const d = a + 3;
-      indices.push(a, c, b, b, c, d);
-    }
-  };
-
-  addWallStrip({ side: 'left', segments: floorSegmentsZ });
-  addWallStrip({ side: 'right', segments: floorSegmentsZ });
-  addWallStrip({ side: 'front', segments: floorSegmentsX });
-  addWallStrip({ side: 'back', segments: floorSegmentsX });
-
-  const geometry = registerDisposable(new BufferGeometry());
-  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function createGroundUnderlay() {
-  const geometry = createSealedUnderlayGeometry();
-  const material = registerDisposable(new MeshBasicMaterial({
-    color: '#ffffff',
-    side: DoubleSide,
-    transparent: false,
-    depthWrite: true,
-    depthTest: true
-  }));
-
-  groundUnderlay = new Mesh(geometry, material);
-  groundUnderlay.name = 'gaussian-surface-sealed-underlay';
-  groundUnderlay.position.set(0, UNDERLAY_FLOOR_Y, UNDERLAY_CENTER_Z);
-  groundUnderlay.renderOrder = -12;
-  scene.add(groundUnderlay);
-
-  const texture = registerTexture(loader.load(GROUND_UNDERLAY_URL, (loaded) => {
-    loaded.colorSpace = SRGBColorSpace;
-    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
-    loaded.minFilter = LinearFilter;
-    loaded.magFilter = LinearFilter;
-    loaded.wrapS = RepeatWrapping;
-    loaded.wrapT = RepeatWrapping;
-    loaded.repeat.set(1.0, 1.0);
-    loaded.needsUpdate = true;
-    material.map = loaded;
-    material.needsUpdate = true;
-  }));
-  texture.colorSpace = SRGBColorSpace;
-}
-
-
 const FLOWER_PATCHES = [
   new Vector3(-1.86, -0.5, 2.08),
   new Vector3(-1.38, -0.47, 2.48),
@@ -416,23 +292,47 @@ const FLOWER_PATCHES = [
 ];
 
 const BUTTERFLY_PALETTE = [
-  { top: '#f278a8', bottom: '#ffd55f', accent: '#fff4b8' },
-  { top: '#76cfe1', bottom: '#d5f6ff', accent: '#ffffff' },
-  { top: '#8d89ff', bottom: '#ddd7ff', accent: '#fff2a2' },
-  { top: '#ff9f73', bottom: '#ffe0bf', accent: '#fff6d2' },
-  { top: '#8bcf6f', bottom: '#daf4ad', accent: '#fff6c8' },
-  { top: '#e77bc0', bottom: '#ffd7ee', accent: '#ffffff' }
+  { top: '#f47caf', bottom: '#ffd861', accent: '#fff6c7' },
+  { top: '#6ecbe2', bottom: '#d7f7ff', accent: '#ffffff' },
+  { top: '#8f86ff', bottom: '#ded8ff', accent: '#fff0a6' },
+  { top: '#ff986d', bottom: '#ffe0c4', accent: '#fff5cf' },
+  { top: '#80ca6b', bottom: '#ddf3aa', accent: '#fff7c4' },
+  { top: '#e978be', bottom: '#ffd6ef', accent: '#ffffff' }
 ];
 
-function createIndexedGeometry(points, indices) {
+const butterflyWingMaterials = new Map();
+let butterflyWingGeometry;
+let butterflyBodyGeometry;
+let butterflyBodyMaterial;
+
+function createIndexedGeometry(points, indices, uvs = null) {
   const geometry = registerDisposable(new BufferGeometry());
   geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+  if (uvs) geometry.setAttribute('uv', new Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
 }
 
-function createBodyGeometry() {
+function createButterflyWingGeometry() {
+  return createIndexedGeometry([
+    0.0, 0.105, 0,
+    0.11, 0.155, 0,
+    0.235, 0.07, 0,
+    0.22, -0.105, 0,
+    0.08, -0.155, 0,
+    0.0, -0.085, 0
+  ], [0, 1, 5, 1, 2, 5, 2, 3, 4, 2, 4, 5], [
+    0.0, 0.86,
+    0.48, 1.0,
+    1.0, 0.72,
+    0.94, 0.18,
+    0.34, 0.0,
+    0.0, 0.28
+  ]);
+}
+
+function createButterflyBodyGeometry() {
   return createIndexedGeometry([
     -0.012, 0.16, 0,
      0.012, 0.16, 0,
@@ -441,44 +341,88 @@ function createBodyGeometry() {
   ], [0, 2, 1, 1, 2, 3]);
 }
 
-function createButterflyWingGeometry(kind = 'upper') {
-  if (kind === 'upper') {
-    return createIndexedGeometry([
-      0.0, 0.0, 0,
-      0.065, 0.11, 0,
-      0.16, 0.13, 0,
-      0.225, 0.05, 0,
-      0.185, -0.02, 0,
-      0.08, -0.03, 0
-    ], [0, 1, 5, 1, 2, 4, 1, 4, 5, 2, 3, 4]);
-  }
-
-  return createIndexedGeometry([
-    0.0, -0.004, 0,
-    0.06, -0.02, 0,
-    0.145, -0.06, 0,
-    0.13, -0.165, 0,
-    0.042, -0.12, 0
-  ], [0, 1, 4, 1, 2, 3, 1, 3, 4]);
+function ensureButterflyGeometry() {
+  butterflyWingGeometry ??= createButterflyWingGeometry();
+  butterflyBodyGeometry ??= createButterflyBodyGeometry();
+  butterflyBodyMaterial ??= registerDisposable(new MeshBasicMaterial({
+    color: '#4a371f',
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.98,
+    depthWrite: false,
+    depthTest: true
+  }));
 }
 
-function createButterflyAccentGeometry(kind = 'upper') {
-  if (kind === 'upper') {
-    return createIndexedGeometry([
-      0.025, 0.02, 0,
-      0.08, 0.075, 0,
-      0.14, 0.065, 0,
-      0.12, 0.01, 0,
-      0.055, -0.005, 0
-    ], [0, 1, 4, 1, 2, 3, 1, 3, 4]);
-  }
+function createButterflyWingTexture(palette) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 128, 128);
 
-  return createIndexedGeometry([
-      0.02, -0.02, 0,
-      0.07, -0.04, 0,
-      0.105, -0.11, 0,
-      0.048, -0.085, 0
-    ], [0, 1, 3, 1, 2, 3]);
+  const topGradient = ctx.createLinearGradient(8, 10, 120, 70);
+  topGradient.addColorStop(0, palette.accent);
+  topGradient.addColorStop(0.34, palette.top);
+  topGradient.addColorStop(1, palette.bottom);
+
+  ctx.fillStyle = topGradient;
+  ctx.beginPath();
+  ctx.moveTo(2, 62);
+  ctx.bezierCurveTo(18, 18, 74, 0, 124, 35);
+  ctx.bezierCurveTo(116, 75, 56, 80, 2, 65);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = palette.bottom;
+  ctx.beginPath();
+  ctx.moveTo(4, 69);
+  ctx.bezierCurveTo(40, 72, 98, 82, 112, 125);
+  ctx.bezierCurveTo(62, 126, 22, 104, 2, 72);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.globalAlpha = 0.52;
+  ctx.strokeStyle = palette.accent;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(18, 60);
+  ctx.bezierCurveTo(42, 38, 72, 32, 104, 42);
+  ctx.stroke();
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(24, 76);
+  ctx.bezierCurveTo(50, 86, 76, 96, 96, 116);
+  ctx.stroke();
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(78, 40, 10, 6, -0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(64, 96, 7, 4, 0.45, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = registerTexture(new CanvasTexture(canvas));
+  texture.colorSpace = SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function getButterflyWingMaterial(paletteIndex) {
+  if (butterflyWingMaterials.has(paletteIndex)) return butterflyWingMaterials.get(paletteIndex);
+  const palette = BUTTERFLY_PALETTE[paletteIndex % BUTTERFLY_PALETTE.length];
+  const material = registerDisposable(new MeshBasicMaterial({
+    map: createButterflyWingTexture(palette),
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: false,
+    depthTest: true,
+    alphaTest: 0.04
+  }));
+  butterflyWingMaterials.set(paletteIndex, material);
+  return material;
 }
 
 function configureTexture(texture, repeatX = 1, repeatY = 1) {
@@ -492,77 +436,45 @@ function configureTexture(texture, repeatX = 1, repeatY = 1) {
   texture.needsUpdate = true;
 }
 
-function ensureButterflyGeometry() {
-  butterflyUpperWingGeometry ??= createButterflyWingGeometry('upper');
-  butterflyLowerWingGeometry ??= createButterflyWingGeometry('lower');
-  butterflyUpperAccentGeometry ??= createButterflyAccentGeometry('upper');
-  butterflyLowerAccentGeometry ??= createButterflyAccentGeometry('lower');
-  butterflyBodyGeometry ??= createBodyGeometry();
-}
-
-function createButterflyActor({ position, scale = 0.1, palette, phase = 0, bob = 0.012, sway = 0.026, depth = 0.018, flapSpeed = 11.5, wingBias = 0 }) {
+function createButterflyActor({ position, scale = 0.1, paletteIndex = 0, phase = 0, bob = 0.012, sway = 0.026, depth = 0.018, flapSpeed = 11.5, roll = 0 }) {
   ensureButterflyGeometry();
   const root = new Group();
   root.position.set(position[0], position[1], position[2]);
   root.renderOrder = 42;
   overlayRoot.add(root);
 
-  const makeMaterial = (color, opacity = 0.98) => registerDisposable(new MeshBasicMaterial({
-    color,
-    side: DoubleSide,
-    transparent: true,
-    opacity,
-    depthWrite: false,
-    depthTest: true
-  }));
+  const leftPivot = new Group();
+  const rightPivot = new Group();
+  root.add(leftPivot, rightPivot);
 
-  const createWingSet = (side) => {
-    const sign = side === 'left' ? -1 : 1;
-    const upperPivot = new Group();
-    const lowerPivot = new Group();
-    upperPivot.position.set(0, 0.012, 0);
-    lowerPivot.position.set(0, -0.005, 0);
-    root.add(upperPivot, lowerPivot);
+  const material = getButterflyWingMaterial(paletteIndex);
+  const leftWing = new Mesh(butterflyWingGeometry, material);
+  const rightWing = new Mesh(butterflyWingGeometry, material);
+  leftWing.scale.x = -1;
+  leftWing.position.z = 0.001;
+  rightWing.position.z = -0.001;
+  leftWing.renderOrder = 42;
+  rightWing.renderOrder = 42;
+  leftPivot.add(leftWing);
+  rightPivot.add(rightWing);
 
-    const upperWing = new Mesh(butterflyUpperWingGeometry, makeMaterial(palette.top));
-    const upperAccent = new Mesh(butterflyUpperAccentGeometry, makeMaterial(palette.accent, 0.9));
-    const lowerWing = new Mesh(butterflyLowerWingGeometry, makeMaterial(palette.bottom));
-    const lowerAccent = new Mesh(butterflyLowerAccentGeometry, makeMaterial(palette.accent, 0.84));
-
-    [upperWing, upperAccent, lowerWing, lowerAccent].forEach((part) => {
-      part.scale.x = sign;
-      part.renderOrder = 42;
-      part.position.z = side === 'left' ? 0.0015 : -0.0015;
-    });
-    upperAccent.position.z += 0.001;
-    lowerAccent.position.z += 0.001;
-
-    upperPivot.add(upperWing, upperAccent);
-    lowerPivot.add(lowerWing, lowerAccent);
-    return { upperPivot, lowerPivot };
-  };
-
-  const left = createWingSet('left');
-  const right = createWingSet('right');
-  const body = new Mesh(butterflyBodyGeometry, makeMaterial('#4a371f'));
-  body.renderOrder = 43;
+  const body = new Mesh(butterflyBodyGeometry, butterflyBodyMaterial);
   body.position.z = 0.003;
+  body.renderOrder = 43;
   root.add(body);
   root.scale.setScalar(scale);
 
   butterflyActors.push({
     root,
+    leftPivot,
+    rightPivot,
     body,
-    leftUpperPivot: left.upperPivot,
-    leftLowerPivot: left.lowerPivot,
-    rightUpperPivot: right.upperPivot,
-    rightLowerPivot: right.lowerPivot,
     basePosition: root.position.clone(),
     bob,
     sway,
     depth,
     flapSpeed,
-    wingBias,
+    roll,
     phase
   });
 }
@@ -619,23 +531,22 @@ function createFlyingActors() {
   beeLeftTexture = loadBeeTexture(beeLeftUrl);
 
   const butterflyPlacements = [
-    [-1.82, -0.58, 2.18], [-1.42, -0.56, 2.54], [-0.96, -0.54, 2.9],
-    [-0.5, -0.57, 3.26], [-0.04, -0.55, 3.62], [0.42, -0.56, 3.96],
-    [0.86, -0.52, 4.22], [1.28, -0.49, 4.46], [0.72, -0.53, 4.58],
-    [0.08, -0.54, 4.02], [-0.82, -0.52, 3.4], [1.62, -0.47, 4.74]
+    [-1.74, -0.58, 2.18], [-1.18, -0.56, 2.72], [-0.56, -0.57, 3.22],
+    [0.02, -0.55, 3.68], [0.58, -0.55, 4.08], [1.1, -0.51, 4.42],
+    [0.68, -0.53, 4.66], [-0.1, -0.54, 4.12], [-0.88, -0.52, 3.46]
   ];
 
   butterflyPlacements.forEach((position, index) => {
     createButterflyActor({
       position,
-      scale: 0.084 + (index % 3) * 0.008,
-      palette: BUTTERFLY_PALETTE[index % BUTTERFLY_PALETTE.length],
-      phase: index * 0.52,
-      bob: 0.008 + (index % 4) * 0.0015,
-      sway: 0.014 + (index % 4) * 0.003,
-      depth: 0.01 + (index % 3) * 0.003,
-      flapSpeed: 9.5 + (index % 5) * 0.7,
-      wingBias: (index % 2 === 0 ? 1 : -1) * 0.03
+      scale: 0.075 + (index % 3) * 0.007,
+      paletteIndex: index % BUTTERFLY_PALETTE.length,
+      phase: index * 0.58,
+      bob: 0.007 + (index % 3) * 0.0015,
+      sway: 0.012 + (index % 4) * 0.002,
+      depth: 0.008 + (index % 3) * 0.002,
+      flapSpeed: 8.6 + (index % 5) * 0.55,
+      roll: (index % 2 === 0 ? 1 : -1) * 0.035
     });
   });
 
@@ -659,27 +570,21 @@ function updateButterflies(loopTime) {
   if (!butterflyActors.length || !camera) return;
 
   butterflyActors.forEach((actor, index) => {
-    const t = loopTime * (0.2 + index * 0.002) + actor.phase;
+    const t = loopTime * (0.18 + index * 0.002) + actor.phase;
     actor.root.quaternion.copy(camera.quaternion);
-    actor.root.rotateZ(Math.sin(t * 0.45) * 0.06);
+    actor.root.rotateZ(actor.roll + Math.sin(t * 0.42) * 0.035);
     actor.root.position.set(
-      actor.basePosition.x + Math.sin(t * 0.82) * actor.sway,
-      actor.basePosition.y + Math.sin(t * 1.55) * actor.bob,
-      actor.basePosition.z + Math.cos(t * 0.68) * actor.depth
+      actor.basePosition.x + Math.sin(t * 0.78) * actor.sway,
+      actor.basePosition.y + Math.sin(t * 1.35) * actor.bob,
+      actor.basePosition.z + Math.cos(t * 0.62) * actor.depth
     );
 
-    const flap = 0.22 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.72;
-    const lowerFlap = flap * 0.56;
-
-    actor.leftUpperPivot.rotation.y = flap + actor.wingBias;
-    actor.rightUpperPivot.rotation.y = -flap - actor.wingBias;
-    actor.leftLowerPivot.rotation.y = lowerFlap + actor.wingBias * 0.7;
-    actor.rightLowerPivot.rotation.y = -lowerFlap - actor.wingBias * 0.7;
-    actor.leftUpperPivot.rotation.z = 0.14;
-    actor.rightUpperPivot.rotation.z = -0.14;
-    actor.leftLowerPivot.rotation.z = -0.06;
-    actor.rightLowerPivot.rotation.z = 0.06;
-    actor.body.rotation.z = Math.sin(t * 0.9) * 0.08;
+    const flap = 0.28 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.62;
+    actor.leftPivot.rotation.y = flap;
+    actor.rightPivot.rotation.y = -flap;
+    actor.leftPivot.rotation.z = 0.08;
+    actor.rightPivot.rotation.z = -0.08;
+    actor.body.rotation.z = Math.sin(t * 0.78) * 0.05;
   });
 }
 
@@ -777,8 +682,8 @@ function createSplatScene() {
     url: SPLAT_URL,
     lod: true,
     enableLod: true,
-    lodScale: 1.85,
-    maxSplats: 680000,
+    lodScale: 2.15,
+    maxSplats: 440000,
     onLoad: () => {
       if (disposed) return;
       splatLoading.value = false;
@@ -803,15 +708,14 @@ function createScene() {
 
   createSkybox();
   createParticlePoints();
-  createGroundUnderlay();
   createSplatScene();
   createFlyingActors();
 
   sparkRenderer = new SparkRenderer({
     renderer,
     clock,
-    maxPixelRadius: 220,
-    minPixelRadius: 0.22,
+    maxPixelRadius: 190,
+    minPixelRadius: 0.28,
     minAlpha: 0.5 / 255,
     onDirty: () => null
   });
@@ -832,7 +736,7 @@ function updateResponsive() {
   viewHeight = Math.max(320, rect.height || window.innerHeight);
   const aspect = viewWidth / Math.max(viewHeight, 1);
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 0.95 : 1.2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 0.85 : 1.0));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
   targetFov = aspect < 0.72 ? 66 : aspect > 1.9 ? 54 : 58;
@@ -874,7 +778,7 @@ function sampleGaussianCameraTrajectory(progress) {
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
   const yaw = baseYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.38, 0.25);
+  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.16, 0.06);
   return new Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -910,11 +814,6 @@ function updateCamera(delta, elapsed) {
     particleSystem.rotation.y = Math.sin(loopProgress * Math.PI * 2) * 0.018;
   }
 
-  if (groundUnderlay) {
-    groundUnderlay.position.x = 0;
-    groundUnderlay.position.y = UNDERLAY_FLOOR_Y;
-    groundUnderlay.position.z = UNDERLAY_CENTER_Z;
-  }
 
   updateFlyingActors(loopTime);
 }
@@ -949,8 +848,8 @@ function handlePointerMove(event) {
   if (!pointerDown || event.pointerId !== pointerId) return;
   const dx = event.clientX - pointerStartX;
   const dy = event.clientY - pointerStartY;
-  manualYawOffset = MathUtils.clamp(yawStart - dx * 0.0012, -0.18, 0.18);
-  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, -0.16, 0.16);
+  manualYawOffset = MathUtils.clamp(yawStart - dx * 0.0012, -0.09, 0.09);
+  manualPitchOffset = MathUtils.clamp(pitchStart + dy * 0.0011, -0.08, 0.08);
 }
 
 function endPointer(event) {
