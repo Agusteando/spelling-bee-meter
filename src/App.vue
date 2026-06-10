@@ -62,13 +62,13 @@
     <section class="splat-orbit-panel" aria-label="Scene view controls">
       <div class="orbit-actions">
         <button class="btn orbit-toggle" type="button" @click="panoramaDriftEnabled = !panoramaDriftEnabled">
-          {{ panoramaDriftEnabled ? 'Pause automatic slow orbit' : 'Resume automatic slow orbit' }}
+          {{ panoramaDriftEnabled ? 'Pause slow depth travel' : 'Resume slow depth travel' }}
         </button>
         <button class="btn orbit-toggle secondary" type="button" @click="splatEnabled = !splatEnabled">
-          {{ splatEnabled ? 'Hide Gaussian splat scene' : 'Show optional Gaussian splat scene' }}
+          {{ splatEnabled ? 'Hide Gaussian splat scene' : 'Show Gaussian splat scene' }}
         </button>
       </div>
-      <p>The panorama auto-orbits slowly by default. Drag to look around manually; the optional Gaussian splat stays off unless enabled.</p>
+      <p>The Gaussian splat is on by default. The camera travels slowly forward and back at a fixed angle to show depth; drag lightly to nudge the view.</p>
     </section>
   </main>
 </template>
@@ -77,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260610-002500';
+const BUILD_STAMP = '20260610-011500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -92,7 +92,7 @@ const showIntro = ref(true);
 const rolling = ref(false);
 const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
-const splatEnabled = ref(false);
+const splatEnabled = ref(true);
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
 const qs = new URLSearchParams(window.location.search);

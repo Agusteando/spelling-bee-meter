@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spelling-bee-3d-20260610-002500';
+const CACHE_NAME = 'spelling-bee-3d-20260610-011500';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CORE_ASSETS = ['/', '/index.html', '/intro.mp4', '/manifest.json'];
 
@@ -22,7 +22,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   const isLocal = url.origin === self.location.origin;
-  const isVisualAsset = url.pathname === '/' || url.pathname.endsWith('.html') || url.pathname.includes('/assets/') || url.pathname.includes('/splats/') || url.pathname.includes('/panoramas/') || url.pathname.endsWith('.spz') || url.pathname.endsWith('.webp') || url.pathname.endsWith('.png') || url.pathname.endsWith('.svg');
+  const isVisualAsset = url.pathname === '/' || url.pathname.endsWith('.html') || url.pathname.includes('/assets/') || url.pathname.includes('/splats/') || url.pathname.includes('/panoramas/') || url.pathname.endsWith('.spz') || url.pathname.endsWith('.ply') || url.pathname.endsWith('.webp') || url.pathname.endsWith('.png') || url.pathname.endsWith('.svg');
 
   if (isLocal && isVisualAsset) {
     event.respondWith(
