@@ -1,1 +1,1 @@
-Añade abejas y mariposas animadas sobre el splat y coloca una base texturizada para cubrir huecos del terreno.
+Reemplaza el splat activo por el nuevo archivo PLY y conserva la escena con sprites y base de terreno.

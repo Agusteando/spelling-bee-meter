@@ -55,7 +55,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-015900';
+const BUILD_STAMP = '20260610-020500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
