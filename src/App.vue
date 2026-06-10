@@ -1,9 +1,13 @@
 <template>
   <main class="app-shell">
     <section class="hero-stage">
-      <ThreeBeeScene :slow-drift-enabled="panoramaDriftEnabled" :splat-enabled="splatEnabled" />
+      <ThreeBeeScene
+        :slow-drift-enabled="panoramaDriftEnabled"
+        :splat-enabled="splatEnabled"
+        @scene-ready="handleSceneReady"
+      />
 
-      <div class="slot-overlay" aria-label="Spelling Bee draw meter">
+      <div v-show="sceneReady" class="slot-overlay" aria-label="Spelling Bee draw meter">
         <div ref="reelsRoot" class="reel-wrap" :class="{ rolling }" @click="draw">
           <div v-for="position in state.digits" :key="position" class="reel">
             <div class="numbers">
@@ -14,7 +18,7 @@
         <p class="draw-hint">Click the meter or press space to draw</p>
       </div>
 
-      <div id="gradient" class="gradient-bar" :class="{ animate: rolling }"></div>
+      <div v-show="sceneReady" id="gradient" class="gradient-bar" :class="{ animate: rolling }"></div>
     </section>
 
     <section id="controls" class="controls-panel">
@@ -65,7 +69,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260610-235500';
+const BUILD_STAMP = '20260611-001500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -77,6 +81,7 @@ const rolling = ref(false);
 const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
 const splatEnabled = ref(true);
+const sceneReady = ref(false);
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
 const qs = new URLSearchParams(window.location.search);
@@ -137,6 +142,11 @@ function pad(value) {
 function saveState() {
   localStorage.setItem(STATE_KEY, JSON.stringify(state.value));
   hasSavedState.value = true;
+}
+
+async function handleSceneReady() {
+  sceneReady.value = true;
+  await setupReels(displayedValue);
 }
 
 function notifySceneActivity() {
@@ -248,7 +258,7 @@ async function spinTo(value) {
 }
 
 async function draw() {
-  if (rolling.value) return;
+  if (!sceneReady.value || rolling.value) return;
   notifySceneActivity();
 
   if (state.value.idx + 1 >= state.value.data.length) {

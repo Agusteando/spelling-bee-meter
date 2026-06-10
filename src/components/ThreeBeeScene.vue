@@ -49,7 +49,9 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-235500';
+const emit = defineEmits(['scene-ready']);
+
+const BUILD_STAMP = '20260611-001500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -87,23 +89,17 @@ let fov = 58;
 let lastActivity = 0;
 let splatRevealStart = 0;
 let splatRevealComplete = false;
+let sceneReadyEmitted = false;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(-0.34, 0.006, 1.68);
+const CAMERA_HOME = new Vector3(-0.48, 0.008, 1.66);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 62;
-const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [-0.34, 0.006, 1.68], yaw: 0.098, pitch: -0.03, fovOffset: 2.0 },
-  { t: 0.1, position: [-0.3, 0.026, 2.58], yaw: 0.084, pitch: -0.026, fovOffset: 1.1 },
-  { t: 0.24, position: [-0.16, 0.07, 4.34], yaw: 0.052, pitch: -0.018, fovOffset: 0.0 },
-  { t: 0.4, position: [0.04, 0.17, 6.82], yaw: 0.006, pitch: -0.002, fovOffset: -1.4 },
-  { t: 0.56, position: [0.28, 0.36, 9.52], yaw: -0.068, pitch: 0.018, fovOffset: -2.6 },
-  { t: 0.68, position: [0.2, 0.5, 10.48], yaw: -0.048, pitch: 0.03, fovOffset: -2.4 },
-  { t: 0.8, position: [0.02, 0.4, 8.1], yaw: -0.008, pitch: 0.014, fovOffset: -1.4 },
-  { t: 0.92, position: [-0.18, 0.14, 4.52], yaw: 0.04, pitch: -0.012, fovOffset: 0.3 },
-  { t: 1, position: [-0.34, 0.006, 1.68], yaw: 0.098, pitch: -0.03, fovOffset: 2.0 }
-];
+const SCENE_LOOP_SECONDS = 58;
+const CAMERA_PATH_FRONT_Z = 1.66;
+const CAMERA_PATH_DEPTH = 8.95;
+const CAMERA_PATH_SIDE_AMPLITUDE = 0.48;
+const CAMERA_PATH_SIDE_DRIFT = 0.08;
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -247,6 +243,7 @@ function createParticlePoints() {
   particleSystem = new Points(geometry, createParticleMaterial());
   particleSystem.name = 'foreground-pollen-and-wisps';
   particleSystem.renderOrder = 20;
+  particleSystem.visible = false;
   scene.add(particleSystem);
 }
 
@@ -500,6 +497,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
 function createFlyingActors() {
   overlayRoot = new Group();
   overlayRoot.name = 'splat-overlays';
+  overlayRoot.visible = false;
   scene.add(overlayRoot);
 
   beeRightTexture = loadBeeTexture(beeRightUrl);
@@ -646,6 +644,15 @@ function updateFlyingActors(loopTime) {
   updateBees(loopTime);
 }
 
+function markSceneReady() {
+  if (sceneReadyEmitted) return;
+  sceneReadyEmitted = true;
+  splatLoading.value = false;
+  if (overlayRoot) overlayRoot.visible = props.splatEnabled;
+  if (particleSystem) particleSystem.visible = props.splatEnabled;
+  emit('scene-ready');
+}
+
 function updateSplatReveal(elapsed) {
   if (!splatRoot || !splatMesh || !splatMesh.isInitialized || splatRevealComplete) return;
 
@@ -662,6 +669,7 @@ function updateSplatReveal(elapsed) {
     splatRoot.scale.setScalar(SPLAT_BASE_SCALE);
     splatRoot.position.y = 0;
     splatRevealComplete = true;
+    markSceneReady();
   }
 }
 
@@ -686,8 +694,11 @@ function createSplatScene() {
       if (disposed) return;
       splatRevealStart = clock.elapsedTime;
       splatRevealComplete = false;
+      sceneReadyEmitted = false;
+      if (overlayRoot) overlayRoot.visible = false;
+      if (particleSystem) particleSystem.visible = false;
       if (splatMesh) splatMesh.opacity = 0;
-      splatLoading.value = false;
+      splatLoading.value = true;
     },
     onProgress: () => null
   });
@@ -724,9 +735,11 @@ function createScene() {
 }
 
 function updateSplatVisibility() {
+  const visibleContent = Boolean(props.splatEnabled && sceneReadyEmitted);
   if (splatRoot) splatRoot.visible = props.splatEnabled;
-  if (overlayRoot) overlayRoot.visible = props.splatEnabled;
-  splatLoading.value = Boolean(props.splatEnabled && splatMesh && !splatMesh.isInitialized);
+  if (overlayRoot) overlayRoot.visible = visibleContent;
+  if (particleSystem) particleSystem.visible = visibleContent;
+  splatLoading.value = Boolean(props.splatEnabled && (!splatMesh || !splatMesh.isInitialized || !sceneReadyEmitted));
 }
 
 function updateResponsive() {
@@ -749,31 +762,22 @@ function updateResponsive() {
 }
 
 function sampleGaussianCameraTrajectory(progress) {
-  const normalizedProgress = ((progress % 1) + 1) % 1;
+  const p = ((progress % 1) + 1) % 1;
+  const fullPhase = p * Math.PI * 2;
+  const forwardPhase = Math.sin(p * Math.PI);
+  const depth = Math.pow(Math.max(0, forwardPhase), 0.72);
+  const lift = Math.pow(Math.max(0, forwardPhase), 1.12);
+  const lateral = (-CAMERA_PATH_SIDE_AMPLITUDE * Math.cos(fullPhase)) + (CAMERA_PATH_SIDE_DRIFT * Math.sin(fullPhase));
 
-  for (let index = 0; index < GAUSSIAN_CAMERA_TRAJECTORY.length - 1; index += 1) {
-    const current = GAUSSIAN_CAMERA_TRAJECTORY[index];
-    const next = GAUSSIAN_CAMERA_TRAJECTORY[index + 1];
+  cameraPathPosition.set(
+    lateral,
+    0.008 + lift * 0.52,
+    CAMERA_PATH_FRONT_Z + depth * CAMERA_PATH_DEPTH
+  );
 
-    if (normalizedProgress >= current.t && normalizedProgress <= next.t) {
-      const span = Math.max(next.t - current.t, 0.0001);
-      const localProgress = MathUtils.smoothstep((normalizedProgress - current.t) / span, 0, 1);
-
-      cameraPathPosition.set(current.position[0], current.position[1], current.position[2]);
-      cameraPathTargetPosition.set(next.position[0], next.position[1], next.position[2]);
-      cameraPathPosition.lerp(cameraPathTargetPosition, localProgress);
-      cameraPathYaw = MathUtils.lerp(current.yaw, next.yaw, localProgress);
-      cameraPathPitch = MathUtils.lerp(current.pitch, next.pitch, localProgress);
-      cameraPathFovOffset = MathUtils.lerp(current.fovOffset, next.fovOffset, localProgress);
-      return;
-    }
-  }
-
-  const first = GAUSSIAN_CAMERA_TRAJECTORY[0];
-  cameraPathPosition.set(first.position[0], first.position[1], first.position[2]);
-  cameraPathYaw = first.yaw;
-  cameraPathPitch = first.pitch;
-  cameraPathFovOffset = first.fovOffset;
+  cameraPathYaw = MathUtils.clamp(-lateral * 0.16, -0.095, 0.095);
+  cameraPathPitch = MathUtils.lerp(-0.034, 0.032, lift) + Math.sin(fullPhase) * 0.004;
+  cameraPathFovOffset = MathUtils.lerp(2.2, -3.0, depth);
 }
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
@@ -815,7 +819,7 @@ function updateCamera(delta, elapsed) {
 
 
   updateSplatReveal(elapsed);
-  updateFlyingActors(loopTime);
+  if (sceneReadyEmitted) updateFlyingActors(loopTime);
 }
 
 function animate() {
