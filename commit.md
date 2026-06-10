@@ -1,1 +1,1 @@
-Acorta y suaviza la trayectoria de cámara, conserva el primer splat y reemplaza el intro por el video sin audio.
+Cierra la capa de relleno como una isla con paredes para tapar huecos del splat y recorta el intro a unos 3 segundos sin audio.

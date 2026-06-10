@@ -53,7 +53,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-043000';
+const BUILD_STAMP = '20260610-050000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -77,6 +77,7 @@ let splatRoot;
 let splatMesh;
 let particleSystem;
 let groundUnderlay;
+let groundUnderlayShell;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -262,31 +263,87 @@ function createParticlePoints() {
 
 
 function createGroundUnderlay() {
-  const geometry = registerDisposable(new PlaneGeometry(24, 24, 1, 1));
-  const material = registerDisposable(new MeshBasicMaterial({
+  const UNDERLAY_SIZE = 24;
+  const UNDERLAY_HEIGHT = 3.1;
+  const UNDERLAY_Y = -0.62;
+  const UNDERLAY_Z = 4.2;
+  const wallYOffset = UNDERLAY_HEIGHT * 0.5;
+
+  groundUnderlayShell = new Group();
+  groundUnderlayShell.name = 'gaussian-hole-cover-island-shell';
+  scene.add(groundUnderlayShell);
+
+  const topGeometry = registerDisposable(new PlaneGeometry(UNDERLAY_SIZE, UNDERLAY_SIZE, 1, 1));
+  const wallGeometry = registerDisposable(new PlaneGeometry(UNDERLAY_SIZE, UNDERLAY_HEIGHT, 1, 1));
+  const sideGeometry = registerDisposable(new PlaneGeometry(UNDERLAY_SIZE, UNDERLAY_HEIGHT, 1, 1));
+
+  const topMaterial = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
     transparent: false,
     depthWrite: true,
     depthTest: true
   }));
+  const wallMaterialTemplate = () => registerDisposable(new MeshBasicMaterial({
+    color: '#f7e5be',
+    transparent: false,
+    depthWrite: true,
+    depthTest: true
+  }));
 
-  groundUnderlay = new Mesh(geometry, material);
+  groundUnderlay = new Mesh(topGeometry, topMaterial);
   groundUnderlay.name = 'gaussian-surface-hole-underlay';
   groundUnderlay.rotation.x = -Math.PI / 2;
-  groundUnderlay.position.set(0, -0.62, 4.2);
+  groundUnderlay.position.set(0, UNDERLAY_Y, UNDERLAY_Z);
   groundUnderlay.renderOrder = -10;
-  scene.add(groundUnderlay);
+  groundUnderlayShell.add(groundUnderlay);
 
-  const texture = registerTexture(loader.load(GROUND_UNDERLAY_URL, (loaded) => {
+  const northWall = new Mesh(wallGeometry, wallMaterialTemplate());
+  northWall.name = 'gaussian-hole-cover-wall-north';
+  northWall.position.set(0, UNDERLAY_Y - wallYOffset, UNDERLAY_Z - UNDERLAY_SIZE * 0.5);
+  groundUnderlayShell.add(northWall);
+
+  const southWall = new Mesh(wallGeometry, wallMaterialTemplate());
+  southWall.name = 'gaussian-hole-cover-wall-south';
+  southWall.rotation.y = Math.PI;
+  southWall.position.set(0, UNDERLAY_Y - wallYOffset, UNDERLAY_Z + UNDERLAY_SIZE * 0.5);
+  groundUnderlayShell.add(southWall);
+
+  const eastWall = new Mesh(sideGeometry, wallMaterialTemplate());
+  eastWall.name = 'gaussian-hole-cover-wall-east';
+  eastWall.rotation.y = -Math.PI / 2;
+  eastWall.position.set(UNDERLAY_SIZE * 0.5, UNDERLAY_Y - wallYOffset, UNDERLAY_Z);
+  groundUnderlayShell.add(eastWall);
+
+  const westWall = new Mesh(sideGeometry, wallMaterialTemplate());
+  westWall.name = 'gaussian-hole-cover-wall-west';
+  westWall.rotation.y = Math.PI / 2;
+  westWall.position.set(-UNDERLAY_SIZE * 0.5, UNDERLAY_Y - wallYOffset, UNDERLAY_Z);
+  groundUnderlayShell.add(westWall);
+
+  const applyTexture = (material, loaded, repeatX = 1, repeatY = 1) => {
     loaded.colorSpace = SRGBColorSpace;
+    loaded.wrapS = RepeatWrapping;
+    loaded.wrapT = RepeatWrapping;
+    loaded.repeat.set(repeatX, repeatY);
     loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
     loaded.minFilter = LinearFilter;
     loaded.magFilter = LinearFilter;
     loaded.needsUpdate = true;
     material.map = loaded;
     material.needsUpdate = true;
+  };
+
+  const topTexture = registerTexture(loader.load(GROUND_UNDERLAY_URL, (loaded) => {
+    applyTexture(topMaterial, loaded, 1, 1);
   }));
-  texture.colorSpace = SRGBColorSpace;
+  topTexture.colorSpace = SRGBColorSpace;
+
+  [northWall, southWall, eastWall, westWall].forEach((wall, index) => {
+    const wallTexture = registerTexture(loader.load(GROUND_UNDERLAY_URL, (loaded) => {
+      applyTexture(wall.material, loaded, 1, 0.35);
+    }));
+    wallTexture.colorSpace = SRGBColorSpace;
+  });
 }
 
 function createFlyingSpriteActor({
@@ -508,9 +565,9 @@ function updateCamera(delta, elapsed) {
     particleSystem.rotation.y = Math.sin(elapsed * 0.055) * 0.018;
   }
 
-  if (groundUnderlay) {
-    groundUnderlay.position.x = camera.position.x * 0.08;
-    groundUnderlay.position.z = 4.2 + camera.position.z * 0.02;
+  if (groundUnderlayShell) {
+    groundUnderlayShell.position.x = camera.position.x * 0.08;
+    groundUnderlayShell.position.z = camera.position.z * 0.02;
   }
 
   updateFlyingActors(elapsed);

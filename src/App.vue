@@ -68,7 +68,7 @@
           {{ splatEnabled ? 'Hide Gaussian splat scene' : 'Show Gaussian splat scene' }}
         </button>
       </div>
-      <p>The Gaussian splat is on by default. The camera now uses a shorter, slower forward/back depth drift and returns before the full trip; drag lightly to nudge the view.</p>
+      <p>The Gaussian splat is on by default. The camera uses a shorter, slower forward/back depth drift and return. The hole-cover underlay now closes downward like an island shell to hide more gaps; drag lightly to nudge the view.</p>
     </section>
   </main>
 </template>
@@ -77,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260610-043000';
+const BUILD_STAMP = '20260610-050000';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
