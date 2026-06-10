@@ -12,6 +12,7 @@ import {
   AmbientLight,
   CanvasTexture,
   BufferGeometry,
+  CatmullRomCurve3,
   Clock,
   Color,
   DoubleSide,
@@ -52,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-003000';
+const BUILD_STAMP = '20260611-011500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SPLAT_FALLBACK_URL = `/splats/reference.ply?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
@@ -97,13 +98,21 @@ let activeSplatUrl = SPLAT_URL;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(-0.48, 0.008, 1.66);
+const CAMERA_HOME = new Vector3(0.0, 0.018, 1.72);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 58;
-const CAMERA_PATH_FRONT_Z = 1.66;
-const CAMERA_PATH_DEPTH = 8.95;
-const CAMERA_PATH_SIDE_AMPLITUDE = 0.48;
-const CAMERA_PATH_SIDE_DRIFT = 0.08;
+const SCENE_LOOP_SECONDS = 66;
+const CAMERA_PATH_CURVE = new CatmullRomCurve3([
+  new Vector3(0.0, 0.018, 1.72),
+  new Vector3(-0.44, -0.012, 3.16),
+  new Vector3(-1.18, 0.024, 5.22),
+  new Vector3(-0.72, 0.14, 7.15),
+  new Vector3(0.28, 0.34, 8.62),
+  new Vector3(1.24, 0.68, 9.84),
+  new Vector3(0.92, 0.76, 10.2),
+  new Vector3(0.24, 0.42, 8.6),
+  new Vector3(-0.16, 0.16, 5.34),
+  new Vector3(-0.02, 0.04, 2.64)
+], true, 'catmullrom', 0.38);
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -827,28 +836,27 @@ function updateResponsive() {
 
 function sampleGaussianCameraTrajectory(progress) {
   const p = ((progress % 1) + 1) % 1;
-  const fullPhase = p * Math.PI * 2;
-  const forwardPhase = Math.sin(p * Math.PI);
-  const depth = Math.pow(Math.max(0, forwardPhase), 0.72);
-  const lift = Math.pow(Math.max(0, forwardPhase), 1.12);
-  const lateral = (-CAMERA_PATH_SIDE_AMPLITUDE * Math.cos(fullPhase)) + (CAMERA_PATH_SIDE_DRIFT * Math.sin(fullPhase));
+  const phase = p * Math.PI * 2;
+  CAMERA_PATH_CURVE.getPointAt(p, cameraPathPosition);
 
-  cameraPathPosition.set(
-    lateral,
-    0.008 + lift * 0.52,
-    CAMERA_PATH_FRONT_Z + depth * CAMERA_PATH_DEPTH
+  const depthProgress = MathUtils.clamp((cameraPathPosition.z - 1.72) / 8.48, 0, 1);
+  const sideLook = -cameraPathPosition.x * 0.24;
+  const deliberateSweep = Math.sin(phase - 0.42) * 0.055 * Math.sin(p * Math.PI);
+  cameraPathYaw = MathUtils.clamp(sideLook + deliberateSweep, -0.36, 0.36);
+  cameraPathPitch = MathUtils.clamp(
+    MathUtils.lerp(-0.052, 0.075, depthProgress) + Math.sin(phase * 0.5) * 0.012,
+    -0.075,
+    0.09
   );
-
-  cameraPathYaw = MathUtils.clamp(-lateral * 0.16, -0.095, 0.095);
-  cameraPathPitch = MathUtils.lerp(-0.034, 0.032, lift) + Math.sin(fullPhase) * 0.004;
-  cameraPathFovOffset = MathUtils.lerp(2.2, -3.0, depth);
+  cameraPathFovOffset = MathUtils.lerp(0.8, -0.85, depthProgress);
 }
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
   const yaw = baseYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.24, 0.12);
+  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.18, 0.16);
+  const safeYaw = MathUtils.clamp(yaw, -0.46, 0.46);
   return new Vector3(
-    Math.sin(yaw) * Math.cos(pitch),
+    Math.sin(safeYaw) * Math.cos(pitch),
     Math.sin(pitch),
     Math.cos(yaw) * Math.cos(pitch)
   ).normalize();
@@ -863,8 +871,8 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0015 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.003 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0008 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.002 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);
