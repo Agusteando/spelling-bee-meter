@@ -51,7 +51,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-082000';
+const BUILD_STAMP = '20260610-093000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.jpg?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -88,20 +88,19 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = -0.02;
-const CAMERA_HOME = new Vector3(-1.18, -0.08, 1.54);
+const fixedPitch = -0.012;
+const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 52;
-const UNDERLAY_CENTER_Z = 3.28;
-const UNDERLAY_FLOOR_Y = -1.08;
+const SCENE_LOOP_SECONDS = 78;
+const UNDERLAY_CENTER_Z = 3.22;
+const UNDERLAY_FLOOR_Y = -1.32;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [-1.18, -0.08, 1.54], yaw: -0.13, pitch: -0.05, fovOffset: 0.9 },
-  { t: 0.16, position: [-1.05, -0.075, 1.88], yaw: -0.09, pitch: -0.045, fovOffset: 0.5 },
-  { t: 0.34, position: [-0.58, -0.035, 2.38], yaw: 0.08, pitch: -0.028, fovOffset: 0.1 },
-  { t: 0.54, position: [0.18, 0.0, 2.95], yaw: -0.05, pitch: -0.015, fovOffset: -0.2 },
-  { t: 0.74, position: [0.78, 0.015, 3.48], yaw: -0.16, pitch: -0.006, fovOffset: 0.1 },
-  { t: 0.9, position: [-0.34, -0.05, 2.22], yaw: 0.03, pitch: -0.035, fovOffset: 0.55 },
-  { t: 1, position: [-1.18, -0.08, 1.54], yaw: -0.13, pitch: -0.05, fovOffset: 0.9 }
+  { t: 0, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
+  { t: 0.18, position: [0.035, 0.043, 1.98], yaw: 0.018, pitch: -0.012, fovOffset: 0.05 },
+  { t: 0.38, position: [-0.075, 0.047, 2.18], yaw: -0.025, pitch: -0.01, fovOffset: -0.05 },
+  { t: 0.62, position: [0.105, 0.045, 2.37], yaw: 0.032, pitch: -0.009, fovOffset: -0.1 },
+  { t: 0.82, position: [-0.04, 0.042, 2.48], yaw: -0.012, pitch: -0.011, fovOffset: 0.0 },
+  { t: 1, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -272,15 +271,15 @@ function createParticlePoints() {
 }
 
 
-function createSealedUnderlayGeometry({ width = 4.45, depth = 2.92, floorSegmentsX = 32, floorSegmentsZ = 26 } = {}) {
+function createSealedUnderlayGeometry({ width = 4.12, depth = 2.58, floorSegmentsX = 32, floorSegmentsZ = 26 } = {}) {
   const positions = [];
   const uvs = [];
   const indices = [];
   const halfWidth = width / 2;
   const halfDepth = depth / 2;
-  const rimLift = 0.2;
-  const wallTop = 0.56;
-  const wallLean = 0.32;
+  const rimLift = 0.12;
+  const wallTop = 0.38;
+  const wallLean = 0.24;
 
   const pushVertex = (x, y, z, u, v) => {
     positions.push(x, y, z);
@@ -648,8 +647,8 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.01 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.004 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.006 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.003 : 0;
 
   camera.position.copy(cameraPathPosition)
     .addScaledVector(CAMERA_SIDE, sideSway);

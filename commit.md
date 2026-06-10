@@ -1,1 +1,1 @@
-Ajusta la trayectoria curva de cámara, mariposas teñidas de superficie y underlay del Gaussian.
+Optimiza assets y ajusta trayectoria de cámara dentro del Gaussian.
