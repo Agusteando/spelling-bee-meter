@@ -1,1 +1,1 @@
-Optimiza assets y ajusta trayectoria de cámara dentro del Gaussian.
+Ajusta el origen de la cámara ligeramente hacia atrás manteniendo la trayectoria acotada dentro del gaussian splat.

@@ -89,18 +89,18 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
+const CAMERA_HOME = new Vector3(0.0, 0.04, 1.76);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
 const SCENE_LOOP_SECONDS = 78;
 const UNDERLAY_CENTER_Z = 3.22;
 const UNDERLAY_FLOOR_Y = -1.32;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
-  { t: 0.18, position: [0.035, 0.043, 1.98], yaw: 0.018, pitch: -0.012, fovOffset: 0.05 },
-  { t: 0.38, position: [-0.075, 0.047, 2.18], yaw: -0.025, pitch: -0.01, fovOffset: -0.05 },
-  { t: 0.62, position: [0.105, 0.045, 2.37], yaw: 0.032, pitch: -0.009, fovOffset: -0.1 },
-  { t: 0.82, position: [-0.04, 0.042, 2.48], yaw: -0.012, pitch: -0.011, fovOffset: 0.0 },
-  { t: 1, position: [0.0, 0.04, 1.86], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
+  { t: 0, position: [0.0, 0.04, 1.76], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 },
+  { t: 0.18, position: [0.035, 0.043, 1.9], yaw: 0.018, pitch: -0.012, fovOffset: 0.05 },
+  { t: 0.38, position: [-0.075, 0.047, 2.1], yaw: -0.025, pitch: -0.01, fovOffset: -0.05 },
+  { t: 0.62, position: [0.105, 0.045, 2.29], yaw: 0.032, pitch: -0.009, fovOffset: -0.1 },
+  { t: 0.82, position: [-0.04, 0.042, 2.4], yaw: -0.012, pitch: -0.011, fovOffset: 0.0 },
+  { t: 1, position: [0.0, 0.04, 1.76], yaw: 0.0, pitch: -0.012, fovOffset: 0.0 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
