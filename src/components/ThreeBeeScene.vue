@@ -44,7 +44,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-011500';
+const BUILD_STAMP = '20260610-012500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/bee-pattern-skybox.png?v=${BUILD_STAMP}`;
 
@@ -73,12 +73,15 @@ let manualYawOffset = 0;
 let manualPitchOffset = 0;
 let yawStart = 0;
 let pitchStart = 0;
-let targetFov = 64;
-let fov = 64;
+let targetFov = 52;
+let fov = 52;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const fixedPitch = -0.035;
+const fixedPitch = -0.018;
+const CAMERA_HOME = new Vector3(0.0, 0.03, 0.34);
+const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
+const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -246,6 +249,9 @@ function createSplatScene() {
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
   splatRoot.scale.setScalar(3.85);
+  // PLY coordinates arrive inverted for this capture; rotate the splat, not the camera,
+  // so the camera path can stay inside the reconstructed volume.
+  splatRoot.rotation.x = Math.PI;
   scene.add(splatRoot);
 
   splatMesh = new SplatMesh({
@@ -270,8 +276,8 @@ function createScene() {
   scene = new Scene();
   scene.background = new Color('#fff0c8');
 
-  camera = new PerspectiveCamera(fov, 1, 0.03, 220);
-  camera.position.set(0, 0, 0);
+  camera = new PerspectiveCamera(fov, 1, 0.015, 220);
+  camera.position.copy(CAMERA_HOME);
 
   scene.add(new HemisphereLight('#fff6dd', '#7d6135', 1.1));
   scene.add(new AmbientLight('#fff0d2', 0.92));
@@ -307,7 +313,7 @@ function updateResponsive() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.3 : 1.55));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
-  targetFov = aspect < 0.72 ? 74 : aspect > 1.9 ? 60 : 64;
+  targetFov = aspect < 0.72 ? 60 : aspect > 1.9 ? 48 : 52;
   camera.fov = targetFov;
   camera.updateProjectionMatrix();
 
@@ -331,22 +337,28 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const travelCycle = props.slowDriftEnabled ? elapsed * 0.115 : lastActivity * 0.0;
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.035 : 0;
   const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
-  const dolly = MathUtils.lerp(-0.62, 0.32, pingPong);
-  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.1) * 0.055 : 0;
-  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.07) * 0.035 : 0;
+  // The camera starts close to the capture origin and breathes deeper into the splat,
+  // but never backs out far enough to reveal the outside of the reconstruction.
+  const depth = MathUtils.lerp(0.10, 1.72, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.055) * 0.035 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.045) * 0.018 : 0;
 
-  camera.position.set(sideSway, -0.03 + verticalBreath, dolly);
+  camera.position.copy(CAMERA_HOME)
+    .addScaledVector(CAMERA_FORWARD, depth)
+    .addScaledVector(CAMERA_SIDE, sideSway);
+  camera.position.y += verticalBreath;
   const direction = fixedViewDirection();
   camera.lookAt(camera.position.clone().add(direction));
 
   if (skybox) skybox.position.copy(camera.position);
 
   if (particleSystem) {
-    particleSystem.position.x = camera.position.x * 0.25;
-    particleSystem.position.z = camera.position.z * 0.45;
-    particleSystem.rotation.y = Math.sin(elapsed * 0.08) * 0.025;
+    particleSystem.position.x = camera.position.x * 0.45;
+    particleSystem.position.y = camera.position.y * 0.28;
+    particleSystem.position.z = camera.position.z * 0.62;
+    particleSystem.rotation.y = Math.sin(elapsed * 0.055) * 0.018;
   }
 }
 
@@ -393,7 +405,7 @@ function endPointer(event) {
 
 function handleWheel(event) {
   event.preventDefault();
-  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 2.4, 48, 84);
+  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 2.0, 42, 66);
   lastActivity = clock.elapsedTime;
 }
 
