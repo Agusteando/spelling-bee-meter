@@ -1,1 +1,1 @@
-Reconstruye el escenario panorámico con capas segmentadas, profundidad parallax y odómetro estable
+Usa panorama vectorial de alta resolución para evitar pixelado en la escena

@@ -1,5 +1,5 @@
 <template>
-  <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Layered parallax spelling bee landscape">
+  <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Vector panorama spelling bee landscape">
     <div v-if="splatLoading" class="splat-loading">Loading optional Gaussian splat scene…</div>
   </div>
 </template>
@@ -14,6 +14,7 @@ import {
   BufferGeometry,
   Clock,
   Color,
+  CanvasTexture,
   CylinderGeometry,
   DirectionalLight,
   Float32BufferAttribute,
@@ -50,65 +51,18 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260609-235400';
+const BUILD_STAMP = '20260609-235842';
 const LAYER_ASPECT = 1774 / 887;
-const LAYER_BASE = `/panoramas/segmented`;
+const VECTOR_PANORAMA_URL = `/panoramas/vector/spelling-hills-vector.svg?v=${BUILD_STAMP}`;
 const SPLAT_URL = `/splats/ceramic_500k.spz?v=${BUILD_STAMP}`;
 const DETAIL_FOCUS = new Vector3(-2.1509, 0.7566, 0.8363);
 const DETAIL_ROBUST_SPAN = 102.1;
-
-const PANORAMA_LAYERS = [
-  {
-    name: 'sky-patterns',
-    url: `${LAYER_BASE}/sky-patterns.png?v=${BUILD_STAMP}`,
-    radius: 58,
-    verticalOffset: 0.0,
-    opacity: 0.96,
-    parallax: -0.012,
-    breathe: 0.006,
-    renderOrder: 1
-  },
-  {
-    name: 'mountain-lake',
-    url: `${LAYER_BASE}/mountain-lake.png?v=${BUILD_STAMP}`,
-    radius: 42,
-    verticalOffset: -0.65,
-    opacity: 0.98,
-    parallax: 0.012,
-    breathe: 0.01,
-    renderOrder: 2
-  },
-  {
-    name: 'hills-path',
-    url: `${LAYER_BASE}/hills-path.png?v=${BUILD_STAMP}`,
-    radius: 31,
-    verticalOffset: -0.78,
-    opacity: 1,
-    parallax: 0.032,
-    breathe: 0.014,
-    renderOrder: 3
-  },
-  {
-    name: 'hills-left',
-    url: `${LAYER_BASE}/hills-left.png?v=${BUILD_STAMP}`,
-    radius: 24,
-    verticalOffset: -0.68,
-    opacity: 1,
-    parallax: 0.052,
-    breathe: 0.018,
-    renderOrder: 4
-  },
-  {
-    name: 'foreground-flowers',
-    url: `${LAYER_BASE}/foreground-flowers.png?v=${BUILD_STAMP}`,
-    radius: 18,
-    verticalOffset: -0.52,
-    opacity: 1,
-    parallax: 0.084,
-    breathe: 0.028,
-    renderOrder: 5
-  }
-];
+const VECTOR_PANORAMA = {
+  radius: 46,
+  opacity: 1,
+  verticalOffset: -0.92,
+  renderOrder: 1
+};
 
 const mount = ref(null);
 const dragging = ref(false);
@@ -133,11 +87,11 @@ let splatRequested = false;
 let lastActivity = 0;
 let nextRareBeeAt = 18;
 let yaw = -0.03;
-let pitch = -0.58;
+let pitch = -0.64;
 let targetYaw = -0.03;
-let targetPitch = -0.58;
-let fov = 112;
-let targetFov = 112;
+let targetPitch = -0.64;
+let fov = 118;
+let targetFov = 118;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -181,48 +135,87 @@ function loadTexture(url, onLoad, onError) {
   return texture;
 }
 
-function createPanoramaLayer(config) {
-  const height = (Math.PI * 2 * config.radius) / LAYER_ASPECT;
-  const geometry = registerDisposable(new CylinderGeometry(config.radius, config.radius, height, 192, 1, true));
-  // Render the texture from inside the cylinder without mirroring the artwork.
+function getVectorTextureSize() {
+  const maxTextureSize = renderer?.capabilities?.maxTextureSize || 4096;
+  const deviceScale = Math.min(window.devicePixelRatio || 1, 2);
+  const viewportDrivenWidth = Math.ceil(Math.max(viewWidth || window.innerWidth || 1440, 1440) * deviceScale * 3.2);
+  const width = Math.min(maxTextureSize, Math.max(4096, viewportDrivenWidth));
+  return {
+    width,
+    height: Math.round(width / LAYER_ASPECT)
+  };
+}
+
+async function rasterizeSvgToTexture(url, material) {
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = url;
+    await image.decode();
+    if (disposed) return;
+
+    const { width, height } = getVectorTextureSize();
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { alpha: false });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.fillStyle = '#feecc4';
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    texture.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    cleanup.push(() => texture.dispose());
+
+    material.map = texture;
+    material.needsUpdate = true;
+  } catch (error) {
+    console.warn('Could not load vector panorama', error);
+  }
+}
+
+function createVectorPanorama() {
+  panoramaRoot = new Group();
+  panoramaRoot.name = 'vector-panorama-root';
+  scene.add(panoramaRoot);
+
+  const height = (Math.PI * 2 * VECTOR_PANORAMA.radius) / LAYER_ASPECT;
+  const geometry = registerDisposable(new CylinderGeometry(VECTOR_PANORAMA.radius, VECTOR_PANORAMA.radius, height, 256, 1, true));
   const material = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
-    transparent: true,
-    opacity: config.opacity,
-    alphaTest: 0.015,
+    transparent: false,
+    opacity: VECTOR_PANORAMA.opacity,
     depthWrite: false,
     depthTest: false,
     side: BackSide
   }));
 
   const mesh = new Mesh(geometry, material);
-  mesh.name = `panorama-layer-${config.name}`;
-  mesh.renderOrder = config.renderOrder;
-  mesh.position.y = config.verticalOffset;
+  mesh.name = 'vector-panorama-cylinder';
+  mesh.renderOrder = VECTOR_PANORAMA.renderOrder;
+  mesh.position.y = VECTOR_PANORAMA.verticalOffset;
   mesh.rotation.y = Math.PI;
   mesh.userData = {
     baseRotationY: Math.PI,
-    baseY: config.verticalOffset,
-    parallax: config.parallax,
-    breathe: config.breathe,
-    radius: config.radius
+    baseY: VECTOR_PANORAMA.verticalOffset,
+    breathe: 0.004
   };
-
-  loadTexture(config.url, (texture) => {
-    material.map = texture;
-    material.needsUpdate = true;
-  });
 
   panoramaRoot.add(mesh);
   panoramaLayers.push(mesh);
+  rasterizeSvgToTexture(VECTOR_PANORAMA_URL, material);
   return mesh;
 }
 
 function createLayeredPanorama() {
-  panoramaRoot = new Group();
-  panoramaRoot.name = 'segmented-parallax-panorama';
-  scene.add(panoramaRoot);
-  PANORAMA_LAYERS.forEach(createPanoramaLayer);
+  createVectorPanorama();
 }
 
 function createParticleMaterial() {
@@ -476,7 +469,7 @@ function updateResponsive() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, aspect < 0.7 ? 1.3 : 1.55));
   renderer.setSize(viewWidth, viewHeight, false);
   camera.aspect = aspect;
-  targetFov = aspect < 0.72 ? 116 : aspect > 1.9 ? 106 : 112;
+  targetFov = aspect < 0.72 ? 122 : aspect > 1.9 ? 116 : 118;
   camera.fov = targetFov;
   camera.updateProjectionMatrix();
 
@@ -511,8 +504,8 @@ function updateCamera(delta, elapsed) {
 
   panoramaLayers.forEach((layer) => {
     const data = layer.userData;
-    layer.rotation.y = data.baseRotationY + yaw * data.parallax + Math.sin(elapsed * 0.045 + data.radius) * data.breathe;
-    layer.position.y = data.baseY + Math.sin(elapsed * 0.035 + data.radius * 0.17) * data.breathe * 0.25;
+    layer.rotation.y = data.baseRotationY;
+    layer.position.y = data.baseY + Math.sin(elapsed * 0.035) * data.breathe;
   });
 }
 
@@ -618,7 +611,7 @@ function endPointer(event) {
 
 function handleWheel(event) {
   event.preventDefault();
-  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 70, 118);
+  targetFov = MathUtils.clamp(targetFov + Math.sign(event.deltaY) * 3.5, 82, 124);
   lastActivity = clock.elapsedTime;
 }
 
