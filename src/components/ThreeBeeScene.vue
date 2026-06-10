@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-011500';
+const BUILD_STAMP = '20260611-014500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SPLAT_FALLBACK_URL = `/splats/reference.ply?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
@@ -98,21 +98,23 @@ let activeSplatUrl = SPLAT_URL;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.018, 1.72);
+const CAMERA_HOME = new Vector3(0.0, -0.045, 1.82);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 66;
+const SCENE_LOOP_SECONDS = 44;
+const CAMERA_NEAR_Z = CAMERA_HOME.z;
+const CAMERA_FAR_Z = 9.4;
 const CAMERA_PATH_CURVE = new CatmullRomCurve3([
-  new Vector3(0.0, 0.018, 1.72),
-  new Vector3(-0.44, -0.012, 3.16),
-  new Vector3(-1.18, 0.024, 5.22),
-  new Vector3(-0.72, 0.14, 7.15),
-  new Vector3(0.28, 0.34, 8.62),
-  new Vector3(1.24, 0.68, 9.84),
-  new Vector3(0.92, 0.76, 10.2),
-  new Vector3(0.24, 0.42, 8.6),
-  new Vector3(-0.16, 0.16, 5.34),
-  new Vector3(-0.02, 0.04, 2.64)
-], true, 'catmullrom', 0.38);
+  CAMERA_HOME.clone(),
+  new Vector3(0.06, -0.066, 2.78),
+  new Vector3(0.28, -0.108, 4.38),
+  new Vector3(0.64, -0.034, 5.98),
+  new Vector3(0.88, 0.16, 7.35),
+  new Vector3(0.46, 0.42, 8.75),
+  new Vector3(-0.34, 0.54, 9.4),
+  new Vector3(-0.56, 0.34, 8.05),
+  new Vector3(-0.28, 0.1, 5.35),
+  new Vector3(-0.04, -0.018, 3.0)
+], true, 'catmullrom', 0.3);
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -122,6 +124,7 @@ const beeActors = [];
 const cameraPathPosition = new Vector3();
 const cameraPathTargetPosition = new Vector3();
 const cameraLookTarget = new Vector3();
+const cameraDirection = new Vector3();
 const beeVector = new Vector3();
 let cameraPathYaw = fixedYaw;
 let cameraPathPitch = fixedPitch;
@@ -759,6 +762,8 @@ async function createSplatScene() {
       enableLod: true,
       lodScale: 2.15,
       maxSplats: 440000,
+      editable: false,
+      raycastable: false,
       onLoad: () => {
         if (disposed) return;
         splatRevealStart = clock.elapsedTime;
@@ -801,6 +806,7 @@ function createScene() {
     maxPixelRadius: 190,
     minPixelRadius: 0.28,
     minAlpha: 0.5 / 255,
+    clipXY: 1.12,
     onDirty: () => null
   });
   scene.add(sparkRenderer);
@@ -839,26 +845,27 @@ function sampleGaussianCameraTrajectory(progress) {
   const phase = p * Math.PI * 2;
   CAMERA_PATH_CURVE.getPointAt(p, cameraPathPosition);
 
-  const depthProgress = MathUtils.clamp((cameraPathPosition.z - 1.72) / 8.48, 0, 1);
-  const sideLook = -cameraPathPosition.x * 0.24;
-  const deliberateSweep = Math.sin(phase - 0.42) * 0.055 * Math.sin(p * Math.PI);
-  cameraPathYaw = MathUtils.clamp(sideLook + deliberateSweep, -0.36, 0.36);
+  const depthProgress = MathUtils.clamp((cameraPathPosition.z - CAMERA_NEAR_Z) / (CAMERA_FAR_Z - CAMERA_NEAR_Z), 0, 1);
+  const earlyGuard = MathUtils.smoothstep(p, 0.08, 0.22);
+  const sideLook = -cameraPathPosition.x * 0.18;
+  const deliberateSweep = Math.sin(phase - 0.32) * 0.042 * Math.sin(p * Math.PI) * earlyGuard;
+  cameraPathYaw = MathUtils.clamp((sideLook + deliberateSweep) * (0.55 + earlyGuard * 0.45), -0.26, 0.28);
   cameraPathPitch = MathUtils.clamp(
-    MathUtils.lerp(-0.052, 0.075, depthProgress) + Math.sin(phase * 0.5) * 0.012,
-    -0.075,
-    0.09
+    MathUtils.lerp(0.02, 0.088, depthProgress) + Math.sin(phase * 0.5) * 0.01,
+    -0.02,
+    0.1
   );
-  cameraPathFovOffset = MathUtils.lerp(0.8, -0.85, depthProgress);
+  cameraPathFovOffset = MathUtils.lerp(0.35, -0.75, depthProgress);
 }
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
   const yaw = baseYaw + manualYawOffset;
   const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.18, 0.16);
   const safeYaw = MathUtils.clamp(yaw, -0.46, 0.46);
-  return new Vector3(
+  return cameraDirection.set(
     Math.sin(safeYaw) * Math.cos(pitch),
     Math.sin(pitch),
-    Math.cos(yaw) * Math.cos(pitch)
+    Math.cos(safeYaw) * Math.cos(pitch)
   ).normalize();
 }
 
