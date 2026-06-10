@@ -51,10 +51,12 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-093000';
+const BUILD_STAMP = '20260610-111500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
-const SKYBOX_URL = `/skyboxes/final-sky.jpg?v=${BUILD_STAMP}`;
+const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
+const SKYBOX_REPEAT_X = 4.05;
+const SKYBOX_REPEAT_Y = 3.0;
 
 const mount = ref(null);
 const dragging = ref(false);
@@ -134,7 +136,7 @@ function disposeTree(object) {
 }
 
 function createSkybox() {
-  const geometry = registerDisposable(new SphereGeometry(220, 128, 64));
+  const geometry = registerDisposable(new SphereGeometry(260, 160, 80));
   const material = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
     side: BackSide,
@@ -151,6 +153,10 @@ function createSkybox() {
     loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
     loaded.minFilter = LinearFilter;
     loaded.magFilter = LinearFilter;
+    loaded.wrapS = RepeatWrapping;
+    loaded.wrapT = RepeatWrapping;
+    loaded.repeat.set(SKYBOX_REPEAT_X, SKYBOX_REPEAT_Y);
+    loaded.offset.set(0.5 - (SKYBOX_REPEAT_X * 0.25), 0.5 - (SKYBOX_REPEAT_Y * 0.5));
     loaded.needsUpdate = true;
     material.map = loaded;
     material.needsUpdate = true;
