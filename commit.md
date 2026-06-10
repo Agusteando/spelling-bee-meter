@@ -1,1 +1,1 @@
-Diseñar una trayectoria de cámara más cinematográfica con parallax lateral, ascenso elegante y mayor profundidad, además de dispersar mariposas, abejas y partículas más adentro de la escena
+Eliminar intro y skybox, usar fondo sólido cálido y añadir una aparición animada del splat con trayectoria continua sin pausas

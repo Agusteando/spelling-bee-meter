@@ -3,18 +3,6 @@
     <section class="hero-stage">
       <ThreeBeeScene :slow-drift-enabled="panoramaDriftEnabled" :splat-enabled="splatEnabled" />
 
-      <video
-        v-if="showIntro"
-        ref="introVideo"
-        class="intro-video"
-        src="/intro.mp4"
-        autoplay
-        muted
-        playsinline
-        @ended="showIntro = false"
-        @timeupdate="fadeIntro"
-      ></video>
-
       <div class="slot-overlay" aria-label="Spelling Bee draw meter">
         <div ref="reelsRoot" class="reel-wrap" :class="{ rolling }" @click="draw">
           <div v-for="position in state.digits" :key="position" class="reel">
@@ -77,18 +65,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260610-093000';
+const BUILD_STAMP = '20260610-235500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
 const REEL_LOOPS = 4;
-const INTRO_TOTAL_MS = 8000;
-const INTRO_FADE_MS = 2000;
 
 const reelsRoot = ref(null);
-const introVideo = ref(null);
-const showIntro = ref(true);
 const rolling = ref(false);
 const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
@@ -309,16 +293,6 @@ function applyDuration() {
   spinInput.value = Math.max(1, parseFloat(spinInput.value) || DEF_SEC);
   localStorage.setItem(DUR_KEY, spinInput.value);
   setSpinTimeCss();
-}
-
-function fadeIntro() {
-  const video = introVideo.value;
-  if (!video) return;
-  if (video.currentTime >= (INTRO_TOTAL_MS - INTRO_FADE_MS) / 1000) {
-    const remainingMs = Math.max(250, (INTRO_TOTAL_MS / 1000 - video.currentTime) * 1000);
-    video.style.transition = `opacity ${remainingMs}ms linear`;
-    video.style.opacity = '0';
-  }
 }
 
 function handleKeydown(event) {

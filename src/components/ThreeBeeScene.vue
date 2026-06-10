@@ -9,7 +9,6 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   AdditiveBlending,
   AmbientLight,
-  BackSide,
   CanvasTexture,
   BufferGeometry,
   Clock,
@@ -27,7 +26,6 @@ import {
   RepeatWrapping,
   Scene,
   ShaderMaterial,
-  SphereGeometry,
   Sprite,
   SpriteMaterial,
   SRGBColorSpace,
@@ -51,11 +49,11 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-233500';
+const BUILD_STAMP = '20260610-235500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
-const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
-const SKYBOX_REPEAT_X = 4.05;
-const SKYBOX_REPEAT_Y = 3.0;
+const SKY_COLOR = '#fbe2a4';
+const SPLAT_REVEAL_SECONDS = 4.8;
+const SPLAT_BASE_SCALE = 3.85;
 
 const mount = ref(null);
 const dragging = ref(false);
@@ -70,7 +68,6 @@ let frameHandle;
 let disposed = false;
 let viewWidth = 1;
 let viewHeight = 1;
-let skybox;
 let overlayRoot;
 let splatRoot;
 let splatMesh;
@@ -88,23 +85,24 @@ let pitchStart = 0;
 let targetFov = 58;
 let fov = 58;
 let lastActivity = 0;
+let splatRevealStart = 0;
+let splatRevealComplete = false;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(-0.32, 0.006, 1.72);
+const CAMERA_HOME = new Vector3(-0.34, 0.006, 1.68);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 60;
+const SCENE_LOOP_SECONDS = 62;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [-0.32, 0.006, 1.72], yaw: 0.092, pitch: -0.03, fovOffset: 2.2 },
-  { t: 0.12, position: [-0.28, 0.03, 2.74], yaw: 0.08, pitch: -0.025, fovOffset: 1.0 },
-  { t: 0.28, position: [-0.1, 0.09, 4.86], yaw: 0.04, pitch: -0.016, fovOffset: -0.2 },
-  { t: 0.46, position: [0.12, 0.22, 7.62], yaw: -0.018, pitch: 0.002, fovOffset: -1.8 },
-  { t: 0.6, position: [0.3, 0.4, 9.92], yaw: -0.075, pitch: 0.022, fovOffset: -2.8 },
-  { t: 0.7, position: [0.22, 0.5, 10.28], yaw: -0.055, pitch: 0.032, fovOffset: -2.5 },
-  { t: 0.8, position: [0.06, 0.46, 8.94], yaw: -0.016, pitch: 0.02, fovOffset: -1.7 },
-  { t: 0.9, position: [-0.12, 0.25, 5.84], yaw: 0.022, pitch: -0.002, fovOffset: -0.3 },
-  { t: 0.96, position: [-0.24, 0.08, 3.18], yaw: 0.062, pitch: -0.02, fovOffset: 1.0 },
-  { t: 1, position: [-0.32, 0.006, 1.72], yaw: 0.092, pitch: -0.03, fovOffset: 2.2 }
+  { t: 0, position: [-0.34, 0.006, 1.68], yaw: 0.098, pitch: -0.03, fovOffset: 2.0 },
+  { t: 0.1, position: [-0.3, 0.026, 2.58], yaw: 0.084, pitch: -0.026, fovOffset: 1.1 },
+  { t: 0.24, position: [-0.16, 0.07, 4.34], yaw: 0.052, pitch: -0.018, fovOffset: 0.0 },
+  { t: 0.4, position: [0.04, 0.17, 6.82], yaw: 0.006, pitch: -0.002, fovOffset: -1.4 },
+  { t: 0.56, position: [0.28, 0.36, 9.52], yaw: -0.068, pitch: 0.018, fovOffset: -2.6 },
+  { t: 0.68, position: [0.2, 0.5, 10.48], yaw: -0.048, pitch: 0.03, fovOffset: -2.4 },
+  { t: 0.8, position: [0.02, 0.4, 8.1], yaw: -0.008, pitch: 0.014, fovOffset: -1.4 },
+  { t: 0.92, position: [-0.18, 0.14, 4.52], yaw: 0.04, pitch: -0.012, fovOffset: 0.3 },
+  { t: 1, position: [-0.34, 0.006, 1.68], yaw: 0.098, pitch: -0.03, fovOffset: 2.0 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -138,35 +136,6 @@ function disposeTree(object) {
       materials.forEach((material) => material.dispose?.());
     }
   });
-}
-
-function createSkybox() {
-  const geometry = registerDisposable(new SphereGeometry(260, 96, 48));
-  const material = registerDisposable(new MeshBasicMaterial({
-    color: '#ffffff',
-    side: BackSide,
-    depthWrite: false,
-    depthTest: false
-  }));
-  skybox = new Mesh(geometry, material);
-  skybox.name = 'spelling-bee-pattern-skybox';
-  skybox.renderOrder = -100;
-  scene.add(skybox);
-
-  const texture = registerTexture(loader.load(SKYBOX_URL, (loaded) => {
-    loaded.colorSpace = SRGBColorSpace;
-    loaded.anisotropy = Math.min(renderer?.capabilities?.getMaxAnisotropy?.() || 4, 8);
-    loaded.minFilter = LinearFilter;
-    loaded.magFilter = LinearFilter;
-    loaded.wrapS = RepeatWrapping;
-    loaded.wrapT = RepeatWrapping;
-    loaded.repeat.set(SKYBOX_REPEAT_X, SKYBOX_REPEAT_Y);
-    loaded.offset.set(0.5 - (SKYBOX_REPEAT_X * 0.25), 0.5 - (SKYBOX_REPEAT_Y * 0.5));
-    loaded.needsUpdate = true;
-    material.map = loaded;
-    material.needsUpdate = true;
-  }));
-  texture.colorSpace = SRGBColorSpace;
 }
 
 function createParticleMaterial() {
@@ -677,13 +646,33 @@ function updateFlyingActors(loopTime) {
   updateBees(loopTime);
 }
 
+function updateSplatReveal(elapsed) {
+  if (!splatRoot || !splatMesh || !splatMesh.isInitialized || splatRevealComplete) return;
+
+  const raw = MathUtils.clamp((elapsed - splatRevealStart) / SPLAT_REVEAL_SECONDS, 0, 1);
+  const reveal = MathUtils.smoothstep(raw, 0, 1);
+  const shimmer = raw < 1 ? Math.sin(elapsed * 8.0) * 0.012 * (1 - reveal) : 0;
+
+  splatMesh.opacity = MathUtils.clamp(reveal * 1.08, 0, 1);
+  splatRoot.scale.setScalar(SPLAT_BASE_SCALE * (0.74 + reveal * 0.26 + shimmer));
+  splatRoot.position.y = (1 - reveal) * -0.075;
+
+  if (raw >= 1) {
+    splatMesh.opacity = 1;
+    splatRoot.scale.setScalar(SPLAT_BASE_SCALE);
+    splatRoot.position.y = 0;
+    splatRevealComplete = true;
+  }
+}
+
+
 function createSplatScene() {
 
   splatLoading.value = true;
   splatRoot = new Group();
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
-  splatRoot.scale.setScalar(3.85);
+  splatRoot.scale.setScalar(SPLAT_BASE_SCALE * 0.72);
   splatRoot.rotation.set(0, 0, Math.PI);
   scene.add(splatRoot);
 
@@ -695,6 +684,9 @@ function createSplatScene() {
     maxSplats: 440000,
     onLoad: () => {
       if (disposed) return;
+      splatRevealStart = clock.elapsedTime;
+      splatRevealComplete = false;
+      if (splatMesh) splatMesh.opacity = 0;
       splatLoading.value = false;
     },
     onProgress: () => null
@@ -707,7 +699,7 @@ function createSplatScene() {
 
 function createScene() {
   scene = new Scene();
-  scene.background = new Color('#fff0c8');
+  scene.background = new Color(SKY_COLOR);
 
   camera = new PerspectiveCamera(fov, 1, 0.015, 220);
   camera.position.copy(CAMERA_HOME);
@@ -715,7 +707,6 @@ function createScene() {
   scene.add(new HemisphereLight('#fff6dd', '#7d6135', 1.1));
   scene.add(new AmbientLight('#fff0d2', 0.92));
 
-  createSkybox();
   createParticlePoints();
   createSplatScene();
   createFlyingActors();
@@ -814,7 +805,6 @@ function updateCamera(delta, elapsed) {
   cameraLookTarget.copy(camera.position).add(direction);
   camera.lookAt(cameraLookTarget);
 
-  if (skybox) skybox.position.copy(camera.position);
 
   if (particleSystem) {
     particleSystem.position.x = camera.position.x * 0.45;
@@ -824,6 +814,7 @@ function updateCamera(delta, elapsed) {
   }
 
 
+  updateSplatReveal(elapsed);
   updateFlyingActors(loopTime);
 }
 
@@ -884,7 +875,7 @@ onMounted(() => {
   disposed = false;
   renderer = new WebGLRenderer({ antialias: false, alpha: false, powerPreference: 'high-performance' });
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.setClearColor(0xfff0c8, 1);
+  renderer.setClearColor(0xfbe2a4, 1);
   mount.value.appendChild(renderer.domElement);
 
   createScene();
