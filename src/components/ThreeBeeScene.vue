@@ -53,7 +53,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-051500';
+const BUILD_STAMP = '20260610-053000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.jpg?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
