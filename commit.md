@@ -1,1 +1,1 @@
-Corrige la carga de SPZ v4 convirtiéndolo en runtime a un formato compatible con Spark.
+Corrige la orientación del SPZ v4 para que el splat vuelva a ser visible.

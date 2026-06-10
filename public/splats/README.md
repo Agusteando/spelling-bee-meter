@@ -7,7 +7,7 @@ The app loads `/splats/gaussians.spz`. The file is intentionally excluded from t
 SPZ compatibility:
 - gzip-wrapped legacy SPZ files are passed directly to Spark.
 - raw legacy NGSP files are gzip-wrapped in the browser before Spark receives them.
-- raw SPZ v4 NGSP files are converted in the browser to Spark-compatible legacy SPZ before rendering.
+- raw SPZ v4 NGSP files are converted in the browser to Spark-compatible legacy SPZ v3 before rendering. During this conversion, the cloud is remapped into the scene's +Z-forward render coordinates so it remains visible to the current camera.
 
 For local development, manually place the full file at:
 

@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-025500';
+const BUILD_STAMP = '20260611-031500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -673,7 +673,7 @@ function markSceneReady() {
 
 function setSplatLoadError(error) {
   const detail = error?.message || String(error || 'Unknown error');
-  splatError.value = 'Missing or invalid Gaussian SPZ. This zip does not include the binary splat; put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz. Raw NGSP SPZ and gzip-wrapped SPZ are both supported.';
+  splatError.value = 'Missing or invalid Gaussian SPZ. This zip does not include the binary splat; put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz. Gzip-wrapped legacy SPZ and raw SPZ v4 are supported.';
   console.error('Gaussian splat load failed:', detail);
   splatLoading.value = false;
   if (splatRoot) splatRoot.visible = false;
@@ -720,10 +720,14 @@ async function gzipBytes(bytes) {
 
 async function convertSpz4ToSparkLegacySpz(bytes) {
   const spz = await getSpzModule();
-  const cloud = spz.loadSpzFromBuffer(bytes, { to: spz.CoordinateSystem.RUB });
+  const cloud = spz.loadSpzFromBuffer(bytes, { to: spz.CoordinateSystem.RDF });
+  if (!cloud?.numPoints) {
+    throw new Error('SPZ v4 decoded with no Gaussian points.');
+  }
+
   return spz.saveSpzToBuffer(cloud, {
-    version: 2,
-    from: spz.CoordinateSystem.RUB,
+    version: 3,
+    from: spz.CoordinateSystem.UNSPECIFIED,
     sh1Bits: 8,
     shRestBits: 5
   });
