@@ -1,1 +1,1 @@
-Usa este gaussian splat nuevo en lugar del anterior y actualiza el cache stamp para forzar su carga.
+Restaura la trayectoria de cámara por defecto del splat y corrige el intro usando el video recortado a unos 3 segundos sin audio.

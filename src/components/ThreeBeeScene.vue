@@ -53,7 +53,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-053000';
+const BUILD_STAMP = '20260610-060000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.jpg?v=${BUILD_STAMP}`;
 const GROUND_UNDERLAY_URL = `/underlays/gaussian-hole-cover.png?v=${BUILD_STAMP}`;
@@ -90,13 +90,10 @@ let fov = 58;
 let lastActivity = 0;
 
 const fixedYaw = 0;
-const START_PITCH = -0.012;
-const END_PITCH = 0.84;
+const fixedPitch = -0.012;
 const CAMERA_HOME = new Vector3(0.0, 0.04, 1.86);
 const CAMERA_FORWARD = new Vector3(0.0, 0.0, 1.0);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const CAMERA_END_OFFSET = new Vector3(0.0, 0.88, 0.68);
-const CAMERA_ANIMATION_DURATION = 10.0;
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -469,9 +466,9 @@ function updateResponsive() {
   });
 }
 
-function viewDirection(basePitch) {
+function fixedViewDirection() {
   const yaw = fixedYaw + manualYawOffset;
-  const pitch = MathUtils.clamp(basePitch + manualPitchOffset, -0.38, 1.12);
+  const pitch = MathUtils.clamp(fixedPitch + manualPitchOffset, -0.38, 0.25);
   return new Vector3(
     Math.sin(yaw) * Math.cos(pitch),
     Math.sin(pitch),
@@ -484,19 +481,17 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const progressRaw = props.slowDriftEnabled ? Math.min(elapsed / CAMERA_ANIMATION_DURATION, 1) : 0;
-  const progress = progressRaw * progressRaw * (3 - 2 * progressRaw);
-  const microDrift = props.slowDriftEnabled ? (1 - progress) : 0;
-  const sideSway = Math.sin(elapsed * 0.22) * 0.018 * microDrift;
-  const verticalBreath = Math.sin(elapsed * 0.18) * 0.01 * (0.4 + microDrift * 0.6);
+  const travelCycle = props.slowDriftEnabled ? elapsed * 0.010 : 0;
+  const pingPong = 0.5 - Math.cos(travelCycle * Math.PI * 2) * 0.5;
+  const depth = MathUtils.lerp(0.0, 0.58, pingPong);
+  const sideSway = props.slowDriftEnabled ? Math.sin(elapsed * 0.018) * 0.012 : 0;
+  const verticalBreath = props.slowDriftEnabled ? Math.sin(elapsed * 0.016) * 0.006 : 0;
 
   camera.position.copy(CAMERA_HOME)
-    .lerp(CAMERA_HOME.clone().add(CAMERA_END_OFFSET), progress)
+    .addScaledVector(CAMERA_FORWARD, depth)
     .addScaledVector(CAMERA_SIDE, sideSway);
   camera.position.y += verticalBreath;
-
-  const pitch = MathUtils.lerp(START_PITCH, END_PITCH, progress);
-  const direction = viewDirection(pitch);
+  const direction = fixedViewDirection();
   camera.lookAt(camera.position.clone().add(direction));
 
   if (skybox) skybox.position.copy(camera.position);
