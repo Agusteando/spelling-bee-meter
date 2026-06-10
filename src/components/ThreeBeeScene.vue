@@ -51,7 +51,7 @@ const props = defineProps({
   }
 });
 
-const BUILD_STAMP = '20260610-230000';
+const BUILD_STAMP = '20260610-233500';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
 const SKYBOX_URL = `/skyboxes/final-sky.png?v=${BUILD_STAMP}`;
 const SKYBOX_REPEAT_X = 4.05;
@@ -91,20 +91,20 @@ let lastActivity = 0;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
-const CAMERA_HOME = new Vector3(0.0, 0.012, 1.58);
+const CAMERA_HOME = new Vector3(-0.32, 0.006, 1.72);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 48;
+const SCENE_LOOP_SECONDS = 60;
 const GAUSSIAN_CAMERA_TRAJECTORY = [
-  { t: 0, position: [0.0, 0.012, 1.58], yaw: 0.0, pitch: -0.026, fovOffset: 2.4 },
-  { t: 0.08, position: [0.006, 0.034, 2.72], yaw: 0.004, pitch: -0.022, fovOffset: 1.0 },
-  { t: 0.2, position: [-0.024, 0.092, 4.82], yaw: -0.012, pitch: -0.014, fovOffset: -0.4 },
-  { t: 0.34, position: [0.042, 0.22, 7.22], yaw: 0.018, pitch: 0.002, fovOffset: -1.8 },
-  { t: 0.46, position: [0.02, 0.38, 9.55], yaw: 0.01, pitch: 0.018, fovOffset: -2.6 },
-  { t: 0.58, position: [-0.018, 0.46, 10.65], yaw: -0.006, pitch: 0.024, fovOffset: -2.2 },
-  { t: 0.68, position: [0.012, 0.4, 9.25], yaw: 0.004, pitch: 0.014, fovOffset: -1.5 },
-  { t: 0.82, position: [-0.018, 0.18, 5.72], yaw: -0.008, pitch: -0.006, fovOffset: 0.0 },
-  { t: 0.94, position: [0.006, 0.046, 2.7], yaw: 0.004, pitch: -0.02, fovOffset: 1.2 },
-  { t: 1, position: [0.0, 0.012, 1.58], yaw: 0.0, pitch: -0.026, fovOffset: 2.4 }
+  { t: 0, position: [-0.32, 0.006, 1.72], yaw: 0.092, pitch: -0.03, fovOffset: 2.2 },
+  { t: 0.12, position: [-0.28, 0.03, 2.74], yaw: 0.08, pitch: -0.025, fovOffset: 1.0 },
+  { t: 0.28, position: [-0.1, 0.09, 4.86], yaw: 0.04, pitch: -0.016, fovOffset: -0.2 },
+  { t: 0.46, position: [0.12, 0.22, 7.62], yaw: -0.018, pitch: 0.002, fovOffset: -1.8 },
+  { t: 0.6, position: [0.3, 0.4, 9.92], yaw: -0.075, pitch: 0.022, fovOffset: -2.8 },
+  { t: 0.7, position: [0.22, 0.5, 10.28], yaw: -0.055, pitch: 0.032, fovOffset: -2.5 },
+  { t: 0.8, position: [0.06, 0.46, 8.94], yaw: -0.016, pitch: 0.02, fovOffset: -1.7 },
+  { t: 0.9, position: [-0.12, 0.25, 5.84], yaw: 0.022, pitch: -0.002, fovOffset: -0.3 },
+  { t: 0.96, position: [-0.24, 0.08, 3.18], yaw: 0.062, pitch: -0.02, fovOffset: 1.0 },
+  { t: 1, position: [-0.32, 0.006, 1.72], yaw: 0.092, pitch: -0.03, fovOffset: 2.2 }
 ];
 const clock = new Clock();
 const loader = new TextureLoader();
@@ -250,7 +250,7 @@ function createParticlePoints() {
     addPoint({
       x: MathUtils.randFloatSpread(5.4),
       y: MathUtils.randFloat(-1.0, 1.45),
-      z: MathUtils.randFloat(0.2, 3.3),
+      z: MathUtils.randFloat(0.4, 8.6),
       color: [1.0, MathUtils.randFloat(0.78, 0.96), MathUtils.randFloat(0.22, 0.58)],
       size: MathUtils.randFloat(1.6, 4.2),
       drift: MathUtils.randFloat(0.35, 1.25)
@@ -261,7 +261,7 @@ function createParticlePoints() {
     addPoint({
       x: MathUtils.randFloatSpread(4.2),
       y: MathUtils.randFloat(-0.4, 1.15),
-      z: MathUtils.randFloat(0.05, 2.55),
+      z: MathUtils.randFloat(0.6, 7.2),
       color: [MathUtils.randFloat(0.45, 0.72), MathUtils.randFloat(0.9, 1.0), 1.0],
       size: MathUtils.randFloat(5.5, 10.5),
       drift: MathUtils.randFloat(0.7, 1.5)
@@ -283,15 +283,18 @@ function createParticlePoints() {
 
 
 const FLOWER_PATCHES = [
-  new Vector3(-1.86, -0.5, 2.08),
-  new Vector3(-1.38, -0.47, 2.48),
-  new Vector3(-0.9, -0.51, 2.94),
-  new Vector3(-0.28, -0.48, 3.36),
-  new Vector3(0.38, -0.5, 3.78),
-  new Vector3(1.02, -0.46, 4.16),
-  new Vector3(1.54, -0.43, 4.54),
-  new Vector3(0.66, -0.44, 4.72),
-  new Vector3(-0.52, -0.46, 4.08)
+  new Vector3(-1.92, -0.52, 2.06),
+  new Vector3(-1.42, -0.49, 2.62),
+  new Vector3(-0.88, -0.5, 3.18),
+  new Vector3(-0.26, -0.47, 3.82),
+  new Vector3(0.32, -0.49, 4.46),
+  new Vector3(0.92, -0.45, 5.06),
+  new Vector3(1.36, -0.42, 5.72),
+  new Vector3(0.72, -0.42, 6.38),
+  new Vector3(0.04, -0.44, 6.96),
+  new Vector3(-0.58, -0.4, 7.54),
+  new Vector3(0.24, -0.36, 8.08),
+  new Vector3(0.88, -0.33, 8.68)
 ];
 
 const BUTTERFLY_PALETTE = [
@@ -534,9 +537,10 @@ function createFlyingActors() {
   beeLeftTexture = loadBeeTexture(beeLeftUrl);
 
   const butterflyPlacements = [
-    [-1.74, -0.58, 2.18], [-1.18, -0.56, 2.72], [-0.56, -0.57, 3.22],
-    [0.02, -0.55, 3.68], [0.58, -0.55, 4.08], [1.1, -0.51, 4.42],
-    [0.68, -0.53, 4.66], [-0.1, -0.54, 4.12], [-0.88, -0.52, 3.46]
+    [-1.78, -0.58, 2.18], [-1.22, -0.56, 2.82], [-0.64, -0.57, 3.54],
+    [-0.08, -0.54, 4.24], [0.48, -0.53, 4.98], [1.02, -0.5, 5.72],
+    [0.78, -0.49, 6.44], [0.12, -0.47, 7.18], [-0.54, -0.45, 7.82],
+    [0.32, -0.4, 8.42], [0.94, -0.37, 8.92], [-0.18, -0.42, 5.96]
   ];
 
   butterflyPlacements.forEach((position, index) => {
@@ -554,16 +558,18 @@ function createFlyingActors() {
   });
 
   const beeConfigs = [
-    { route: [0, 1, 2], phase: 0.02, scale: 0.044, speed: 0.86, collectRadius: 0.058, travelLift: 0.068, curve: 0.08 },
+    { route: [0, 1, 3], phase: 0.02, scale: 0.044, speed: 0.86, collectRadius: 0.058, travelLift: 0.068, curve: 0.08 },
     { route: [1, 2, 4], phase: 0.15, scale: 0.042, speed: 0.93, collectRadius: 0.062, travelLift: 0.072, curve: -0.082 },
     { route: [2, 3, 5], phase: 0.28, scale: 0.043, speed: 0.9, collectRadius: 0.056, travelLift: 0.066, curve: 0.078 },
     { route: [3, 4, 6], phase: 0.39, scale: 0.041, speed: 0.88, collectRadius: 0.058, travelLift: 0.07, curve: -0.076 },
     { route: [4, 5, 7], phase: 0.5, scale: 0.043, speed: 0.95, collectRadius: 0.061, travelLift: 0.076, curve: 0.086 },
-    { route: [5, 6, 7], phase: 0.61, scale: 0.04, speed: 0.9, collectRadius: 0.056, travelLift: 0.068, curve: -0.078 },
-    { route: [0, 2, 8], phase: 0.74, scale: 0.042, speed: 0.91, collectRadius: 0.06, travelLift: 0.072, curve: 0.082 },
-    { route: [8, 3, 1], phase: 0.83, scale: 0.041, speed: 0.87, collectRadius: 0.054, travelLift: 0.069, curve: -0.084 },
-    { route: [2, 5, 6], phase: 0.91, scale: 0.04, speed: 0.97, collectRadius: 0.053, travelLift: 0.074, curve: 0.078 },
-    { route: [1, 4, 7], phase: 0.08, scale: 0.042, speed: 0.89, collectRadius: 0.058, travelLift: 0.072, curve: -0.082 }
+    { route: [5, 6, 8], phase: 0.61, scale: 0.04, speed: 0.9, collectRadius: 0.056, travelLift: 0.068, curve: -0.078 },
+    { route: [6, 7, 9], phase: 0.74, scale: 0.042, speed: 0.91, collectRadius: 0.06, travelLift: 0.072, curve: 0.082 },
+    { route: [7, 8, 10], phase: 0.83, scale: 0.041, speed: 0.87, collectRadius: 0.054, travelLift: 0.069, curve: -0.084 },
+    { route: [8, 10, 11], phase: 0.91, scale: 0.04, speed: 0.97, collectRadius: 0.053, travelLift: 0.074, curve: 0.078 },
+    { route: [2, 6, 9], phase: 0.08, scale: 0.042, speed: 0.89, collectRadius: 0.058, travelLift: 0.072, curve: -0.082 },
+    { route: [1, 5, 8], phase: 0.36, scale: 0.041, speed: 0.9, collectRadius: 0.056, travelLift: 0.07, curve: 0.08 },
+    { route: [4, 8, 11], phase: 0.58, scale: 0.04, speed: 0.92, collectRadius: 0.054, travelLift: 0.073, curve: -0.078 }
   ];
 
   beeConfigs.forEach(createBeeActor);
@@ -798,7 +804,7 @@ function updateCamera(delta, elapsed) {
   camera.fov = fov;
   camera.updateProjectionMatrix();
 
-  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.002 : 0;
+  const sideSway = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 2) * 0.0015 : 0;
   const verticalBreath = props.slowDriftEnabled ? Math.sin(loopProgress * Math.PI * 4) * 0.003 : 0;
 
   camera.position.copy(cameraPathPosition)

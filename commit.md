@@ -1,1 +1,1 @@
-Ampliar de forma marcada la entrada de cámara hacia el interior del splat con dolly profundo, ascenso suave y retorno frontal controlado
+Diseñar una trayectoria de cámara más cinematográfica con parallax lateral, ascenso elegante y mayor profundidad, además de dispersar mariposas, abejas y partículas más adentro de la escena
