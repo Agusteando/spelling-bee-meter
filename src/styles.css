@@ -597,3 +597,13 @@ input {
     width: min(100%, 22rem);
   }
 }
+
+
+.splat-loading.splat-error {
+  max-width: min(92vw, 46rem);
+  color: rgba(105, 43, 18, 0.92);
+  border-color: rgba(176, 72, 32, 0.28);
+  background: rgba(255, 232, 198, 0.82);
+  white-space: normal;
+  text-align: center;
+}

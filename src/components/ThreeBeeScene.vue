@@ -1,6 +1,7 @@
 <template>
   <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Gaussian splat spelling bee scene">
-    <div v-if="splatLoading" class="splat-loading">Loading Gaussian splat scene…</div>
+    <div v-if="splatError" class="splat-loading splat-error">{{ splatError }}</div>
+    <div v-else-if="splatLoading" class="splat-loading">Loading Gaussian splat scene…</div>
   </div>
 </template>
 
@@ -51,8 +52,9 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-001500';
+const BUILD_STAMP = '20260611-003000';
 const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
+const SPLAT_FALLBACK_URL = `/splats/reference.ply?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
 const SPLAT_BASE_SCALE = 3.85;
@@ -60,6 +62,7 @@ const SPLAT_BASE_SCALE = 3.85;
 const mount = ref(null);
 const dragging = ref(false);
 const splatLoading = ref(false);
+const splatError = ref('');
 
 let renderer;
 let sparkRenderer;
@@ -90,6 +93,7 @@ let lastActivity = 0;
 let splatRevealStart = 0;
 let splatRevealComplete = false;
 let sceneReadyEmitted = false;
+let activeSplatUrl = SPLAT_URL;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
@@ -653,6 +657,57 @@ function markSceneReady() {
   emit('scene-ready');
 }
 
+
+function setSplatLoadError(error) {
+  const detail = error?.message || String(error || 'Unknown error');
+  splatError.value = 'Missing or invalid Gaussian PLY. Put the full file at public/splats/gaussians.ply, then rebuild/copy it into dist/splats/gaussians.ply for production.';
+  console.error('Gaussian splat load failed:', detail);
+  splatLoading.value = false;
+  if (splatRoot) splatRoot.visible = false;
+  if (overlayRoot) overlayRoot.visible = false;
+  if (particleSystem) particleSystem.visible = false;
+}
+
+async function readResponsePrefix(response) {
+  if (!response.body?.getReader) return '';
+  const reader = response.body.getReader();
+
+  try {
+    const { value } = await reader.read();
+    return new TextDecoder('utf-8').decode(value || new Uint8Array(), { stream: false });
+  } finally {
+    reader.cancel().catch(() => null);
+  }
+}
+
+async function validatePlyUrl(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) return false;
+  const prefix = await readResponsePrefix(response);
+  return !prefix || prefix.startsWith('ply\n') || prefix.startsWith('ply\r\n');
+}
+
+async function resolveSplatUrl() {
+  const candidates = [SPLAT_URL, SPLAT_FALLBACK_URL];
+
+  for (const url of candidates) {
+    try {
+      if (await validatePlyUrl(url)) return url;
+    } catch (error) {
+      console.warn(`Unable to validate ${url}`, error);
+    }
+  }
+
+  throw new Error('No valid PLY found at /splats/gaussians.ply or /splats/reference.ply.');
+}
+
+function handleUnhandledSplatRejection(event) {
+  const message = String(event.reason?.message || event.reason || '');
+  if (!message.toLowerCase().includes('ply')) return;
+  event.preventDefault();
+  setSplatLoadError(event.reason);
+}
+
 function updateSplatReveal(elapsed) {
   if (!splatRoot || !splatMesh || !splatMesh.isInitialized || splatRevealComplete) return;
 
@@ -674,9 +729,10 @@ function updateSplatReveal(elapsed) {
 }
 
 
-function createSplatScene() {
+async function createSplatScene() {
 
   splatLoading.value = true;
+  splatError.value = '';
   splatRoot = new Group();
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
@@ -684,28 +740,36 @@ function createSplatScene() {
   splatRoot.rotation.set(0, 0, Math.PI);
   scene.add(splatRoot);
 
-  splatMesh = new SplatMesh({
-    url: SPLAT_URL,
-    lod: true,
-    enableLod: true,
-    lodScale: 2.15,
-    maxSplats: 440000,
-    onLoad: () => {
-      if (disposed) return;
-      splatRevealStart = clock.elapsedTime;
-      splatRevealComplete = false;
-      sceneReadyEmitted = false;
-      if (overlayRoot) overlayRoot.visible = false;
-      if (particleSystem) particleSystem.visible = false;
-      if (splatMesh) splatMesh.opacity = 0;
-      splatLoading.value = true;
-    },
-    onProgress: () => null
-  });
-  splatMesh.position.set(0, 0, 0);
-  splatMesh.quaternion.set(0, 0, 0, 1);
-  splatRoot.add(splatMesh);
-  cleanup.push(() => splatMesh?.dispose?.());
+  try {
+    activeSplatUrl = await resolveSplatUrl();
+    if (disposed) return;
+
+    splatMesh = new SplatMesh({
+      url: activeSplatUrl,
+      lod: true,
+      enableLod: true,
+      lodScale: 2.15,
+      maxSplats: 440000,
+      onLoad: () => {
+        if (disposed) return;
+        splatRevealStart = clock.elapsedTime;
+        splatRevealComplete = false;
+        sceneReadyEmitted = false;
+        if (overlayRoot) overlayRoot.visible = false;
+        if (particleSystem) particleSystem.visible = false;
+        if (splatMesh) splatMesh.opacity = 0;
+        splatLoading.value = true;
+      },
+      onError: setSplatLoadError,
+      onProgress: () => null
+    });
+    splatMesh.position.set(0, 0, 0);
+    splatMesh.quaternion.set(0, 0, 0, 1);
+    splatRoot.add(splatMesh);
+    cleanup.push(() => splatMesh?.dispose?.());
+  } catch (error) {
+    setSplatLoadError(error);
+  }
 }
 
 function createScene() {
@@ -719,7 +783,7 @@ function createScene() {
   scene.add(new AmbientLight('#fff0d2', 0.92));
 
   createParticlePoints();
-  createSplatScene();
+  void createSplatScene();
   createFlyingActors();
 
   sparkRenderer = new SparkRenderer({
@@ -739,7 +803,7 @@ function updateSplatVisibility() {
   if (splatRoot) splatRoot.visible = props.splatEnabled;
   if (overlayRoot) overlayRoot.visible = visibleContent;
   if (particleSystem) particleSystem.visible = visibleContent;
-  splatLoading.value = Boolean(props.splatEnabled && (!splatMesh || !splatMesh.isInitialized || !sceneReadyEmitted));
+  splatLoading.value = Boolean(props.splatEnabled && !splatError.value && (!splatMesh || !splatMesh.isInitialized || !sceneReadyEmitted));
 }
 
 function updateResponsive() {
@@ -894,6 +958,7 @@ onMounted(() => {
   mount.value.addEventListener('pointercancel', endPointer);
   mount.value.addEventListener('wheel', handleWheel, { passive: false });
   window.addEventListener('bee-meter-activity', handleActivity);
+  window.addEventListener('unhandledrejection', handleUnhandledSplatRejection);
   frameHandle = window.requestAnimationFrame(animate);
 });
 
@@ -910,6 +975,7 @@ onBeforeUnmount(() => {
     mount.value.removeEventListener('wheel', handleWheel);
   }
   window.removeEventListener('bee-meter-activity', handleActivity);
+  window.removeEventListener('unhandledrejection', handleUnhandledSplatRejection);
   butterflyActors.length = 0;
   beeActors.length = 0;
   cleanup.splice(0).forEach((fn) => fn());
