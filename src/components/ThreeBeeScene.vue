@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-022000';
+const BUILD_STAMP = '20260611-024000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -93,7 +93,7 @@ let lastActivity = 0;
 let splatRevealStart = 0;
 let splatRevealComplete = false;
 let sceneReadyEmitted = false;
-let activeSplatUrl = SPLAT_URL;
+let activeSplatSource = { url: SPLAT_URL };
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
@@ -672,27 +672,12 @@ function markSceneReady() {
 
 function setSplatLoadError(error) {
   const detail = error?.message || String(error || 'Unknown error');
-  splatError.value = 'Missing or invalid Gaussian SPZ. Put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz.';
+  splatError.value = 'Missing or invalid Gaussian SPZ. This zip does not include the binary splat; put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz. Raw NGSP SPZ and gzip-wrapped SPZ are both supported.';
   console.error('Gaussian splat load failed:', detail);
   splatLoading.value = false;
   if (splatRoot) splatRoot.visible = false;
   if (overlayRoot) overlayRoot.visible = false;
   if (particleSystem) particleSystem.visible = false;
-}
-
-async function readResponseBytes(response, limit = 8) {
-  if (!response.body?.getReader) {
-    return new Uint8Array(await response.arrayBuffer()).slice(0, limit);
-  }
-
-  const reader = response.body.getReader();
-
-  try {
-    const { value } = await reader.read();
-    return (value || new Uint8Array()).slice(0, limit);
-  } finally {
-    reader.cancel().catch(() => null);
-  }
 }
 
 function hasSpzMagic(bytes) {
@@ -703,26 +688,62 @@ function hasSpzMagic(bytes) {
     && bytes[3] === 0x50;
 }
 
-async function validateSpzUrl(url) {
-  const response = await fetch(url, { cache: 'no-store' });
-  if (!response.ok) return false;
-  const prefix = await readResponseBytes(response, 8);
-  return hasSpzMagic(prefix);
+function hasGzipMagic(bytes) {
+  return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 }
 
-async function resolveSplatUrl() {
-  try {
-    if (await validateSpzUrl(SPLAT_URL)) return SPLAT_URL;
-  } catch (error) {
-    console.warn(`Unable to validate ${SPLAT_URL}`, error);
+function looksLikeHtml(bytes) {
+  if (bytes.length < 5) return false;
+  const prefix = String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 16))).toLowerCase();
+  return prefix.startsWith('<!doctype') || prefix.startsWith('<html') || prefix.startsWith('<head') || prefix.startsWith('<body');
+}
+
+async function gzipBytes(bytes) {
+  if (typeof CompressionStream !== 'function') {
+    throw new Error('Raw NGSP SPZ detected, but this browser cannot gzip it before Spark loads it. Use a gzip-wrapped SPZ or a browser with CompressionStream support.');
   }
 
-  throw new Error('No valid SPZ found at /splats/gaussians.spz.');
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function resolveSplatSource() {
+  const response = await fetch(SPLAT_URL, { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error(`Gaussian SPZ not found at /splats/gaussians.spz (${response.status}).`);
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length < 4) {
+    throw new Error('Gaussian SPZ is empty or truncated.');
+  }
+
+  if (looksLikeHtml(bytes)) {
+    throw new Error('Expected /splats/gaussians.spz, but the browser received HTML. Check the file path, build output, and service worker cache.');
+  }
+
+  if (hasGzipMagic(bytes)) {
+    return {
+      fileBytes: bytes,
+      fileType: 'spz',
+      fileName: 'gaussians.spz'
+    };
+  }
+
+  if (hasSpzMagic(bytes)) {
+    return {
+      fileBytes: await gzipBytes(bytes),
+      fileType: 'spz',
+      fileName: 'gaussians.spz'
+    };
+  }
+
+  throw new Error('Invalid Gaussian SPZ header. Expected gzip-wrapped SPZ or raw NGSP SPZ at /splats/gaussians.spz.');
 }
 
 function handleUnhandledSplatRejection(event) {
   const message = String(event.reason?.message || event.reason || '').toLowerCase();
-  if (!message.includes('splat') && !message.includes('spz') && !message.includes('gaussian')) return;
+  if (!message.includes('splat') && !message.includes('spz') && !message.includes('gaussian') && !message.includes('gzip')) return;
   event.preventDefault();
   setSplatLoadError(event.reason);
 }
@@ -760,11 +781,11 @@ async function createSplatScene() {
   scene.add(splatRoot);
 
   try {
-    activeSplatUrl = await resolveSplatUrl();
+    activeSplatSource = await resolveSplatSource();
     if (disposed) return;
 
     splatMesh = new SplatMesh({
-      url: activeSplatUrl,
+      ...activeSplatSource,
       lod: true,
       enableLod: true,
       lodScale: 2.15,

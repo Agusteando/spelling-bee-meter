@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spelling-bee-3d-20260611-022000';
+const CACHE_NAME = 'spelling-bee-3d-20260611-024000';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
 const CORE_ASSETS = ['/', '/index.html', '/manifest.json'];
 

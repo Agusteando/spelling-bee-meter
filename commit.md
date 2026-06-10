@@ -1,1 +1,1 @@
-Cambiar el splat Gaussian de PLY a SPZ comprimido
+Soporta SPZ crudo y comprimido sin distribuir el splat

@@ -1,11 +1,15 @@
-Active Gaussian splat file:
+Required Gaussian splat file (not included in this zip):
 
 public/splats/gaussians.spz
 
-The app now loads the compressed SPZ version directly from `/splats/gaussians.spz`.
+The app loads `/splats/gaussians.spz` and supports both gzip-wrapped SPZ files and raw NGSP SPZ payloads. Raw NGSP files are gzip-wrapped in the browser before Spark receives them, which avoids the `Invalid gzip header` failure.
 
-For production builds, keep the file in `public/splats/gaussians.spz` before running `npm run build` so Vite copies it to:
+For local development, manually place the full file at:
+
+public/splats/gaussians.spz
+
+For production builds, the file must exist before running `npm run build` so Vite copies it to:
 
 dist/splats/gaussians.spz
 
-If you replace this file after building, rebuild the app so production receives the new SPZ.
+If you copy or replace the SPZ after building, rebuild the app so production receives the current file.

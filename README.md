@@ -15,10 +15,13 @@ The scene loads the compressed Gaussian splat from:
 
 `public/splats/gaussians.spz`
 
-Keep that file in place before running `npm run build`; Vite will copy it to `dist/splats/gaussians.spz` for production.
+The SPZ binary is intentionally not included in this zip. Manually place the full file at `public/splats/gaussians.spz` for development. The loader now supports both gzip-wrapped SPZ files and raw NGSP SPZ payloads, wrapping raw NGSP in the browser before Spark receives it. Keep the file there before running `npm run build`; Vite will copy it to `dist/splats/gaussians.spz` for production.
 
-## Latest pass 20260611-022000
+If you build before copying the SPZ, copy it and rebuild.
 
-- Replaced the PLY splat reference with the supplied compressed SPZ asset.
-- Added SPZ magic-byte validation before Spark initializes the splat.
-- Kept the existing camera, reveal, sprites, and scene behavior unchanged.
+## Latest pass 20260611-023000
+
+- Kept the app referencing `/splats/gaussians.spz`.
+- Supports raw NGSP SPZ and gzip-wrapped SPZ without bundling the splat file.
+- Removed the distributed SPZ binary from the lightweight package.
+- Updated splat setup notes and cache stamp.
