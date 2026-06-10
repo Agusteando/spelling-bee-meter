@@ -53,7 +53,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-024000';
+const BUILD_STAMP = '20260611-025500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -94,6 +94,7 @@ let splatRevealStart = 0;
 let splatRevealComplete = false;
 let sceneReadyEmitted = false;
 let activeSplatSource = { url: SPLAT_URL };
+let spzModulePromise = null;
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
@@ -692,19 +693,40 @@ function hasGzipMagic(bytes) {
   return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 }
 
+function getRawSpzVersion(bytes) {
+  if (!hasSpzMagic(bytes) || bytes.length < 8) return null;
+  return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(4, true);
+}
+
 function looksLikeHtml(bytes) {
   if (bytes.length < 5) return false;
   const prefix = String.fromCharCode(...bytes.slice(0, Math.min(bytes.length, 16))).toLowerCase();
   return prefix.startsWith('<!doctype') || prefix.startsWith('<html') || prefix.startsWith('<head') || prefix.startsWith('<body');
 }
 
+function getSpzModule() {
+  spzModulePromise ??= import('@adobe/spz').then(({ default: createSpzModule }) => createSpzModule());
+  return spzModulePromise;
+}
+
 async function gzipBytes(bytes) {
   if (typeof CompressionStream !== 'function') {
-    throw new Error('Raw NGSP SPZ detected, but this browser cannot gzip it before Spark loads it. Use a gzip-wrapped SPZ or a browser with CompressionStream support.');
+    throw new Error('Raw legacy NGSP SPZ detected, but this browser cannot gzip it before Spark loads it. Use a gzip-wrapped SPZ or a browser with CompressionStream support.');
   }
 
   const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
   return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function convertSpz4ToSparkLegacySpz(bytes) {
+  const spz = await getSpzModule();
+  const cloud = spz.loadSpzFromBuffer(bytes, { to: spz.CoordinateSystem.RUB });
+  return spz.saveSpzToBuffer(cloud, {
+    version: 2,
+    from: spz.CoordinateSystem.RUB,
+    sh1Bits: 8,
+    shRestBits: 5
+  });
 }
 
 async function resolveSplatSource() {
@@ -731,14 +753,19 @@ async function resolveSplatSource() {
   }
 
   if (hasSpzMagic(bytes)) {
+    const version = getRawSpzVersion(bytes);
+    const fileBytes = version >= 4
+      ? await convertSpz4ToSparkLegacySpz(bytes)
+      : await gzipBytes(bytes);
+
     return {
-      fileBytes: await gzipBytes(bytes),
+      fileBytes,
       fileType: 'spz',
       fileName: 'gaussians.spz'
     };
   }
 
-  throw new Error('Invalid Gaussian SPZ header. Expected gzip-wrapped SPZ or raw NGSP SPZ at /splats/gaussians.spz.');
+  throw new Error('Invalid Gaussian SPZ header. Expected gzip-wrapped SPZ, raw legacy NGSP SPZ, or SPZ v4 at /splats/gaussians.spz.');
 }
 
 function handleUnhandledSplatRejection(event) {

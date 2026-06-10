@@ -1,1 +1,1 @@
-Soporta SPZ crudo y comprimido sin distribuir el splat
+Corrige la carga de SPZ v4 convirtiéndolo en runtime a un formato compatible con Spark.

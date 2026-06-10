@@ -2,7 +2,12 @@ Required Gaussian splat file (not included in this zip):
 
 public/splats/gaussians.spz
 
-The app loads `/splats/gaussians.spz` and supports both gzip-wrapped SPZ files and raw NGSP SPZ payloads. Raw NGSP files are gzip-wrapped in the browser before Spark receives them, which avoids the `Invalid gzip header` failure.
+The app loads `/splats/gaussians.spz`. The file is intentionally excluded from the zip; manually place the full SPZ there.
+
+SPZ compatibility:
+- gzip-wrapped legacy SPZ files are passed directly to Spark.
+- raw legacy NGSP files are gzip-wrapped in the browser before Spark receives them.
+- raw SPZ v4 NGSP files are converted in the browser to Spark-compatible legacy SPZ before rendering.
 
 For local development, manually place the full file at:
 
