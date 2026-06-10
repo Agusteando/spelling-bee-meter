@@ -77,7 +77,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260610-033000';
+const BUILD_STAMP = '20260610-040000';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
