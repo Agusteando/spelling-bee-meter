@@ -53,9 +53,8 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready']);
 
-const BUILD_STAMP = '20260611-020500';
-const SPLAT_URL = `/splats/gaussians.ply?v=${BUILD_STAMP}`;
-const SPLAT_FALLBACK_URL = `/splats/reference.ply?v=${BUILD_STAMP}`;
+const BUILD_STAMP = '20260611-022000';
+const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
 const SPLAT_BASE_SCALE = 3.85;
@@ -673,7 +672,7 @@ function markSceneReady() {
 
 function setSplatLoadError(error) {
   const detail = error?.message || String(error || 'Unknown error');
-  splatError.value = 'Missing or invalid Gaussian PLY. Put the full file at public/splats/gaussians.ply, then rebuild/copy it into dist/splats/gaussians.ply for production.';
+  splatError.value = 'Missing or invalid Gaussian SPZ. Put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz.';
   console.error('Gaussian splat load failed:', detail);
   splatLoading.value = false;
   if (splatRoot) splatRoot.visible = false;
@@ -681,42 +680,49 @@ function setSplatLoadError(error) {
   if (particleSystem) particleSystem.visible = false;
 }
 
-async function readResponsePrefix(response) {
-  if (!response.body?.getReader) return '';
+async function readResponseBytes(response, limit = 8) {
+  if (!response.body?.getReader) {
+    return new Uint8Array(await response.arrayBuffer()).slice(0, limit);
+  }
+
   const reader = response.body.getReader();
 
   try {
     const { value } = await reader.read();
-    return new TextDecoder('utf-8').decode(value || new Uint8Array(), { stream: false });
+    return (value || new Uint8Array()).slice(0, limit);
   } finally {
     reader.cancel().catch(() => null);
   }
 }
 
-async function validatePlyUrl(url) {
+function hasSpzMagic(bytes) {
+  return bytes.length >= 4
+    && bytes[0] === 0x4e
+    && bytes[1] === 0x47
+    && bytes[2] === 0x53
+    && bytes[3] === 0x50;
+}
+
+async function validateSpzUrl(url) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) return false;
-  const prefix = await readResponsePrefix(response);
-  return !prefix || prefix.startsWith('ply\n') || prefix.startsWith('ply\r\n');
+  const prefix = await readResponseBytes(response, 8);
+  return hasSpzMagic(prefix);
 }
 
 async function resolveSplatUrl() {
-  const candidates = [SPLAT_URL, SPLAT_FALLBACK_URL];
-
-  for (const url of candidates) {
-    try {
-      if (await validatePlyUrl(url)) return url;
-    } catch (error) {
-      console.warn(`Unable to validate ${url}`, error);
-    }
+  try {
+    if (await validateSpzUrl(SPLAT_URL)) return SPLAT_URL;
+  } catch (error) {
+    console.warn(`Unable to validate ${SPLAT_URL}`, error);
   }
 
-  throw new Error('No valid PLY found at /splats/gaussians.ply or /splats/reference.ply.');
+  throw new Error('No valid SPZ found at /splats/gaussians.spz.');
 }
 
 function handleUnhandledSplatRejection(event) {
-  const message = String(event.reason?.message || event.reason || '');
-  if (!message.toLowerCase().includes('ply')) return;
+  const message = String(event.reason?.message || event.reason || '').toLowerCase();
+  if (!message.includes('splat') && !message.includes('spz') && !message.includes('gaussian')) return;
   event.preventDefault();
   setSplatLoadError(event.reason);
 }

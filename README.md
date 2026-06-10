@@ -11,14 +11,14 @@ Vue + Three.js frontend for the Spelling Bee draw meter.
 
 ## Gaussian splat asset
 
-This lightweight package intentionally does not redistribute the large Gaussian `.ply` file. Place the active splat manually at:
+The scene loads the compressed Gaussian splat from:
 
-`public/splats/gaussians.ply`
+`public/splats/gaussians.spz`
 
-## Latest pass 20260610-235500
+Keep that file in place before running `npm run build`; Vite will copy it to `dist/splats/gaussians.spz` for production.
 
-- Removed the intro video and its service-worker preload entry.
-- Removed the skybox assets and switched the scene to a warm solid background color sampled to match the provided reference image.
-- Added a runtime Gaussian reveal: the splat starts compact and transparent, then expands/fades into its final placement.
-- Removed the camera linger/pause feeling by using a continuous cinematic front/side/top-safe movement curve.
-- Kept the package lightweight by excluding the Gaussian splat, `node_modules`, and `dist`.
+## Latest pass 20260611-022000
+
+- Replaced the PLY splat reference with the supplied compressed SPZ asset.
+- Added SPZ magic-byte validation before Spark initializes the splat.
+- Kept the existing camera, reveal, sprites, and scene behavior unchanged.
