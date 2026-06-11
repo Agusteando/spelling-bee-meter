@@ -14,13 +14,16 @@
           :class="{ rolling }"
           role="button"
           tabindex="0"
+          :aria-label="meterLabel"
           :aria-disabled="rolling || !sceneReady"
           :aria-busy="rolling"
           @click="draw"
         >
           <div v-for="position in state.digits" :key="`reel-${state.digits}-${position}`" class="reel">
-            <div class="numbers" aria-hidden="true">
-              <span v-for="(digit, index) in reelDigits" :key="`${position}-${index}`">{{ digit }}</span>
+            <div class="numbers" :data-reel-index="position - 1" aria-hidden="true">
+              <span v-for="(digit, index) in reelDigits" :key="`${position}-${index}`">
+                <b>{{ digit }}</b>
+              </span>
             </div>
           </div>
         </div>
@@ -78,7 +81,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260611-041800';
+const BUILD_STAMP = '20260611-044500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -138,11 +141,12 @@ const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
 const reelDigits = computed(() => Array.from({ length: (REEL_LOOPS + state.value.digits + 3) * 10 }, (_, index) => index % 10));
 
-let displayedValue = state.value.drawn.at(-1) ?? 0;
-let digitHeight = 0;
+const displayedValue = ref(state.value.drawn.at(-1) ?? 0);
+const meterLabel = computed(() => (rolling.value ? 'Drawing number' : `Current number ${pad(displayedValue.value)}`));
+let reelStepPx = 0;
 let resizeFrame = 0;
 let currentDigits = [];
-let activeTimers = [];
+let activeAnimations = [];
 
 function pad(value) {
   return String(value).padStart(state.value.digits, '0');
@@ -155,7 +159,7 @@ function saveState() {
 
 async function handleSceneReady() {
   sceneReady.value = true;
-  await setupReels(displayedValue);
+  await setupReels(displayedValue.value);
 }
 
 function notifySceneActivity() {
@@ -166,118 +170,135 @@ function setSpinTimeCss() {
   document.documentElement.style.setProperty('--spin-time', `${spinInput.value}s`);
 }
 
-function measureDigit() {
-  const span = reelsRoot.value?.querySelector('span');
-  const nextHeight = span?.getBoundingClientRect().height || 0;
-  if (nextHeight > 0) digitHeight = nextHeight;
-  return digitHeight;
-}
-
 function getColumns() {
   return [...(reelsRoot.value?.querySelectorAll('.numbers') || [])];
 }
 
-function transformForRow(row) {
-  return `translateY(${-row * digitHeight}px)`;
-}
-
-function cancelReelTimers() {
-  activeTimers.forEach((timer) => window.clearTimeout(timer));
-  activeTimers = [];
+function cancelReelAnimations() {
+  activeAnimations.forEach((animation) => animation.cancel());
+  activeAnimations = [];
+  getColumns().forEach((column) => column.getAnimations().forEach((animation) => animation.cancel()));
 }
 
 function nextAnimationFrame() {
   return new Promise((resolve) => window.requestAnimationFrame(resolve));
 }
 
-function setColumnRow(column, row) {
-  column.style.transition = 'none';
-  column.style.transform = transformForRow(row);
+function measureReelStep() {
+  const reel = reelsRoot.value?.querySelector('.reel');
+  const nextStep = reel?.getBoundingClientRect().height || 0;
+  if (nextStep > 0) reelStepPx = nextStep;
+  return reelStepPx;
 }
 
-function normalizeRowsToValue(value = displayedValue) {
+function transformForRow(row) {
+  return `translate3d(0, ${-(row * reelStepPx)}px, 0)`;
+}
+
+function parkColumnAtRow(column, row) {
+  column.getAnimations().forEach((animation) => animation.cancel());
+  column.style.transition = 'none';
+  column.style.transform = transformForRow(row);
+  column.dataset.row = String(row);
+}
+
+function normalizeRowsToValue(value = displayedValue.value) {
   const digits = pad(value).split('').map(Number);
   const columns = getColumns();
   currentDigits = digits;
+  measureReelStep();
   columns.forEach((column, index) => {
-    setColumnRow(column, currentDigits[index] ?? 0);
+    parkColumnAtRow(column, currentDigits[index] ?? 0);
   });
 }
 
-async function setupReels(value = displayedValue) {
+async function setupReels(value = displayedValue.value) {
   await nextTick();
   await document.fonts?.ready?.catch?.(() => null);
-  measureDigit();
+  measureReelStep();
   normalizeRowsToValue(value);
 }
 
-function waitForTransformEnd(column, timeoutMs) {
-  return new Promise((resolve) => {
-    let done = false;
-    let timer = 0;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      window.clearTimeout(timer);
-      column.removeEventListener('transitionend', onEnd);
-      resolve();
-    };
-    const onEnd = (event) => {
-      if (event.propertyName === 'transform') finish();
-    };
-    column.addEventListener('transitionend', onEnd);
-    timer = window.setTimeout(finish, timeoutMs + 180);
-    activeTimers.push(timer);
-  });
+function removeActiveAnimation(animation) {
+  activeAnimations = activeAnimations.filter((item) => item !== animation);
+}
+
+async function animateColumnToDigit(column, index, fromDigit, targetDigit, durationMs) {
+  const loopRows = (REEL_LOOPS + index + 1) * 10;
+  const endRow = loopRows + targetDigit;
+  const startTransform = transformForRow(fromDigit);
+  const endTransform = transformForRow(endRow);
+  const animation = column.animate(
+    [
+      { transform: startTransform, offset: 0 },
+      { transform: transformForRow(Math.max(fromDigit, endRow - 13)), offset: 0.82 },
+      { transform: endTransform, offset: 1 }
+    ],
+    {
+      duration: durationMs + index * 170,
+      easing: 'cubic-bezier(.18,.82,.18,1)',
+      fill: 'forwards'
+    }
+  );
+
+  activeAnimations.push(animation);
+
+  try {
+    await animation.finished;
+  } catch {
+    // A cancelled animation is expected during reset, resize, or component teardown.
+  } finally {
+    removeActiveAnimation(animation);
+    animation.cancel();
+    parkColumnAtRow(column, targetDigit);
+  }
 }
 
 async function spinTo(value) {
+  if (rolling.value) return;
   const columns = getColumns();
-  if (!columns.length) return;
-  measureDigit();
-  if (!digitHeight) {
-    displayedValue = value;
+  if (!columns.length) {
+    displayedValue.value = value;
+    return;
+  }
+
+  measureReelStep();
+  if (!reelStepPx) {
+    displayedValue.value = value;
     normalizeRowsToValue(value);
     return;
   }
 
-  cancelReelTimers();
   rolling.value = true;
   setSpinTimeCss();
+  cancelReelAnimations();
   await nextTick();
 
-  const fromDigits = pad(displayedValue).split('').map(Number);
+  const fromDigits = pad(displayedValue.value).split('').map(Number);
   const targetDigits = pad(value).split('').map(Number);
-  const durationMs = Math.max(700, spinInput.value * 1000);
+  const durationMs = Math.max(850, spinInput.value * 1000);
 
   columns.forEach((column, index) => {
-    setColumnRow(column, fromDigits[index] ?? 0);
-    // Force the browser to commit the parked row before the rolling transform.
-    // Without this, rapid repeat draws can collapse into a jump on some browsers.
-    column.getBoundingClientRect();
+    parkColumnAtRow(column, fromDigits[index] ?? 0);
   });
 
+  // Commit the parked transforms before starting the WAAPI reel animations.
+  reelsRoot.value?.getBoundingClientRect();
   await nextAnimationFrame();
   await nextAnimationFrame();
 
   try {
-    await Promise.all(columns.map(async (column, index) => {
-      const targetDigit = targetDigits[index] ?? 0;
-      const loops = REEL_LOOPS + index;
-      const endRow = loops * 10 + targetDigit;
-      const localDuration = durationMs + index * 135;
-
-      column.style.transition = `transform ${localDuration}ms cubic-bezier(.23,.72,.16,1)`;
-      column.style.transform = transformForRow(endRow);
-
-      await waitForTransformEnd(column, localDuration);
-      setColumnRow(column, targetDigit);
-    }));
+    await Promise.all(columns.map((column, index) => animateColumnToDigit(
+      column,
+      index,
+      fromDigits[index] ?? 0,
+      targetDigits[index] ?? 0,
+      durationMs
+    )));
   } finally {
-    cancelReelTimers();
-    displayedValue = value;
+    displayedValue.value = value;
     currentDigits = targetDigits;
-    columns.forEach((column, index) => setColumnRow(column, currentDigits[index] ?? 0));
+    normalizeRowsToValue(value);
     rolling.value = false;
   }
 }
@@ -286,25 +307,33 @@ async function draw() {
   if (!sceneReady.value || rolling.value) return;
   notifySceneActivity();
 
-  if (state.value.idx + 1 >= state.value.data.length) {
-    state.value = fresh(state.value.max);
-    displayedValue = 0;
+  let nextState = state.value;
+  let nextIndex = nextState.idx + 1;
+
+  if (nextIndex >= nextState.data.length) {
+    nextState = fresh(nextState.max);
+    state.value = nextState;
+    displayedValue.value = 0;
     await setupReels(0);
+    nextIndex = 0;
   }
 
-  state.value.idx += 1;
-  const drawnNumber = state.value.data[state.value.idx];
-  state.value.drawn.push(drawnNumber);
-  saveState();
+  const drawnNumber = nextState.data[nextIndex];
   await spinTo(drawnNumber);
+
+  nextState.idx = nextIndex;
+  nextState.drawn.push(drawnNumber);
+  state.value = { ...nextState, drawn: [...nextState.drawn] };
+  saveState();
 }
 
 async function resetList() {
   if (rolling.value) return;
   notifySceneActivity();
+  cancelReelAnimations();
   state.value = fresh(state.value.max);
   saveState();
-  displayedValue = 0;
+  displayedValue.value = 0;
   await setupReels(0);
 }
 
@@ -347,8 +376,8 @@ function handleMeterResize() {
   resizeFrame = window.requestAnimationFrame(() => {
     resizeFrame = 0;
     if (rolling.value) return;
-    measureDigit();
-    normalizeRowsToValue(displayedValue);
+    measureReelStep();
+    normalizeRowsToValue(displayedValue.value);
   });
 }
 
@@ -377,7 +406,7 @@ async function refreshServiceWorker() {
 
 onMounted(async () => {
   setSpinTimeCss();
-  await setupReels(displayedValue);
+  await setupReels(displayedValue.value);
   window.addEventListener('keydown', handleKeydown);
   window.addEventListener('resize', handleMeterResize);
   window.addEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -385,7 +414,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  cancelReelTimers();
+  cancelReelAnimations();
   window.removeEventListener('keydown', handleKeydown);
   window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);

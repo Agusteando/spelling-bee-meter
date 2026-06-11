@@ -6,8 +6,8 @@
 
 :root {
   --spin-time: 5s;
-  --digit-size: clamp(3.35rem, min(9.3vw, 14dvh), 8.8rem);
-  --reel-step: calc(var(--digit-size) * 1.28);
+  --digit-size: clamp(3.85rem, min(10.2vw, 15.4dvh), 9.65rem);
+  --reel-step: calc(var(--digit-size) * 1.2);
   --ink: #3f2a16;
   --honey: #f8c247;
   --leaf: #91c200;
@@ -116,10 +116,10 @@ input {
 
 .reel-wrap {
   display: flex;
-  gap: 0.12em;
+  gap: 0.08em;
   width: fit-content;
   max-width: min(94vw, 100%);
-  padding: 0.19em 0.25em 0.17em;
+  padding: 0.18em 0.23em 0.16em;
   cursor: pointer;
   user-select: none;
   border-radius: 1.24rem;
@@ -151,8 +151,9 @@ input {
 
 .reel {
   position: relative;
-  width: calc(var(--digit-size) * 0.9);
+  width: calc(var(--digit-size) * 0.86);
   height: var(--reel-step);
+  min-width: calc(var(--digit-size) * 0.86);
   overflow: hidden;
   border-radius: 0.22em;
   perspective: 900px;
@@ -196,6 +197,7 @@ input {
   font-size: var(--digit-size);
   font-weight: 700;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: #fff6ce;
   text-shadow:
     0 0.035em 0 #2a1a0d,
@@ -209,6 +211,7 @@ input {
   will-change: transform;
   backface-visibility: hidden;
   transform-style: preserve-3d;
+  contain: content;
 }
 
 .numbers span {
@@ -217,6 +220,13 @@ input {
   width: 100%;
   height: var(--reel-step);
   flex: 0 0 var(--reel-step);
+  line-height: 1;
+}
+
+.numbers span b {
+  display: block;
+  line-height: 1;
+  transform: translateY(-0.035em);
 }
 
 .draw-hint {
@@ -382,7 +392,7 @@ input {
 
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(2.72rem, min(16vw, 11.4dvh), 6.15rem);
+    --digit-size: clamp(3.05rem, min(17.4vw, 12.3dvh), 6.75rem);
     --stage-pad-x: clamp(0.35rem, 3vw, 0.9rem);
     --stage-pad-top: calc(clamp(0.28rem, 1dvh, 0.72rem) + var(--safe-top));
     --stage-pad-bottom: calc(clamp(1.15rem, 4.2dvh, 3rem) + var(--safe-bottom));
@@ -409,7 +419,7 @@ input {
 
 @media (max-height: 620px) {
   :root {
-    --digit-size: clamp(2.18rem, min(10.6vw, 9.8dvh), 4.75rem);
+    --digit-size: clamp(2.52rem, min(11.4vw, 10.5dvh), 5.2rem);
     --stage-pad-top: calc(0.28rem + var(--safe-top));
     --stage-pad-bottom: calc(1.05rem + var(--safe-bottom));
     --slot-shift-y: -0.2rem;
@@ -426,7 +436,7 @@ input {
 
 @media (max-width: 430px) {
   :root {
-    --digit-size: clamp(2.32rem, 15vw, 4.55rem);
+    --digit-size: clamp(2.62rem, 16.2vw, 4.95rem);
     --slot-shift-y: clamp(-0.68rem, -1.2dvh, -0.12rem);
   }
 
@@ -445,7 +455,7 @@ input {
 
 @media (orientation: landscape) and (max-height: 540px) {
   :root {
-    --digit-size: clamp(2rem, min(7.7vw, 11.2dvh), 3.95rem);
+    --digit-size: clamp(2.2rem, min(8.2vw, 11.8dvh), 4.25rem);
     --stage-pad-bottom: calc(0.72rem + var(--safe-bottom));
     --slot-shift-y: 0rem;
   }
@@ -468,7 +478,7 @@ input {
 /* Radical 3D pass: keep the functional meter in a protected safe area on every viewport. */
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(2.78rem, 15.8vw, 4.95rem);
+    --digit-size: clamp(3.02rem, 16.5vw, 5.35rem);
     --stage-pad-x: clamp(0.45rem, 2.5vw, 0.9rem);
     --stage-pad-bottom: calc(clamp(1.15rem, 3.2dvh, 2.15rem) + var(--safe-bottom));
     --slot-shift-y: clamp(-0.62rem, -1.1dvh, -0.15rem);
@@ -493,7 +503,7 @@ input {
 
 @media (max-height: 620px) and (orientation: landscape) {
   :root {
-    --digit-size: clamp(2.24rem, 9.3dvh, 3.65rem);
+    --digit-size: clamp(2.42rem, 9.8dvh, 3.95rem);
     --stage-pad-top: calc(0.22rem + var(--safe-top));
     --stage-pad-bottom: calc(0.78rem + var(--safe-bottom));
     --slot-shift-y: 0rem;
