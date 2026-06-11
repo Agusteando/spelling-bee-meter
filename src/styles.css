@@ -108,10 +108,32 @@ input {
   z-index: 3;
   display: grid;
   justify-items: center;
-  gap: clamp(0.38rem, 1.18dvh, 0.82rem);
-  width: min(94vw, 48rem);
+  gap: clamp(0.4rem, 1.2dvh, 0.9rem);
+  width: min(94vw, 56rem);
   max-width: 100%;
   transform: translateY(var(--slot-shift-y));
+}
+
+.meter-branding {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 0.55rem 1.35rem rgba(99, 63, 19, 0.18));
+}
+
+.meter-branding-top {
+  width: min(56vw, 30rem);
+  max-height: clamp(2.8rem, 8.4dvh, 5.6rem);
+  margin-bottom: clamp(0rem, 0.2dvh, 0.1rem);
+}
+
+.meter-branding-bottom {
+  width: min(72vw, 38rem);
+  max-height: clamp(3.8rem, 11.5dvh, 7.8rem);
+  margin-top: clamp(0.08rem, 0.35dvh, 0.22rem);
 }
 
 .reel-wrap {
@@ -626,4 +648,20 @@ input {
   background: rgba(255, 232, 198, 0.82);
   white-space: normal;
   text-align: center;
+}
+
+@media (max-width: 720px) {
+  .slot-overlay {
+    width: min(96vw, 100%);
+  }
+
+  .meter-branding-top {
+    width: min(72vw, 22rem);
+    max-height: clamp(2.2rem, 6.5dvh, 4.2rem);
+  }
+
+  .meter-branding-bottom {
+    width: min(84vw, 26rem);
+    max-height: clamp(3.2rem, 9.4dvh, 5.8rem);
+  }
 }

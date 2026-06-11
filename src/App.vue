@@ -8,6 +8,13 @@
       />
 
       <div v-show="sceneReady" class="slot-overlay" aria-label="Spelling Bee draw meter">
+        <img
+          class="meter-branding meter-branding-top"
+          :src="iedisLogo"
+          alt="IEDIS"
+          draggable="false"
+        />
+
         <div
           ref="reelsRoot"
           class="reel-wrap"
@@ -27,6 +34,14 @@
             </div>
           </div>
         </div>
+
+        <img
+          class="meter-branding meter-branding-bottom"
+          :src="spellingBeeLogo"
+          alt="Annual Interscholastic Spelling Bee 2026"
+          draggable="false"
+        />
+
         <p class="draw-hint">Click the meter or press space to draw</p>
       </div>
 
@@ -80,8 +95,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
+import iedisLogo from './assets/branding/iedis-logo.png';
+import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-044500';
+const BUILD_STAMP = '20260611-051000';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;

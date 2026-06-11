@@ -1,1 +1,1 @@
-Reconstruye el odómetro con reels deterministas y cierre preciso
+Ubica los logos institucionales alrededor del odómetro
