@@ -1,1 +1,1 @@
-Ubica los logos institucionales alrededor del odómetro
+Reconstruye el odómetro con motor frame-driven sin salto final

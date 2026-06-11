@@ -26,10 +26,20 @@
           :aria-busy="rolling"
           @click="draw"
         >
-          <div v-for="position in state.digits" :key="`reel-${state.digits}-${position}`" class="reel">
-            <div class="numbers" :data-reel-index="position - 1" aria-hidden="true">
-              <span v-for="(digit, index) in reelDigits" :key="`${position}-${index}`">
-                <b>{{ digit }}</b>
+          <div
+            v-for="position in state.digits"
+            :key="`reel-${state.digits}-${position}`"
+            class="reel"
+            :data-reel-index="position - 1"
+          >
+            <div class="reel-window" aria-hidden="true">
+              <span
+                v-for="(offset, slotIndex) in REEL_VISIBLE_OFFSETS"
+                :key="`${position}-${offset}`"
+                class="reel-digit"
+                :data-slot-index="slotIndex"
+              >
+                <b>0</b>
               </span>
             </div>
           </div>
@@ -98,12 +108,13 @@ import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-051000';
+const BUILD_STAMP = '20260611-053000';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const REEL_LOOPS = 5;
+const REEL_LOOPS = 7;
+const REEL_VISIBLE_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
 
 const reelsRoot = ref(null);
 const rolling = ref(false);
@@ -156,17 +167,24 @@ const maxInput = ref(state.value.max);
 const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
-const reelDigits = computed(() => Array.from({ length: (REEL_LOOPS + state.value.digits + 3) * 10 }, (_, index) => index % 10));
 
 const displayedValue = ref(state.value.drawn.at(-1) ?? 0);
 const meterLabel = computed(() => (rolling.value ? 'Drawing number' : `Current number ${pad(displayedValue.value)}`));
 let reelStepPx = 0;
 let resizeFrame = 0;
-let currentDigits = [];
-let activeAnimations = [];
+let spinFrame = 0;
+let reelPositions = [];
 
 function pad(value) {
   return String(value).padStart(state.value.digits, '0');
+}
+
+function positiveModulo(value, modulo) {
+  return ((value % modulo) + modulo) % modulo;
+}
+
+function digitAtRow(row) {
+  return positiveModulo(Math.round(row), 10);
 }
 
 function saveState() {
@@ -187,14 +205,15 @@ function setSpinTimeCss() {
   document.documentElement.style.setProperty('--spin-time', `${spinInput.value}s`);
 }
 
-function getColumns() {
-  return [...(reelsRoot.value?.querySelectorAll('.numbers') || [])];
+function getReels() {
+  return [...(reelsRoot.value?.querySelectorAll('.reel') || [])];
 }
 
 function cancelReelAnimations() {
-  activeAnimations.forEach((animation) => animation.cancel());
-  activeAnimations = [];
-  getColumns().forEach((column) => column.getAnimations().forEach((animation) => animation.cancel()));
+  if (spinFrame) {
+    window.cancelAnimationFrame(spinFrame);
+    spinFrame = 0;
+  }
 }
 
 function nextAnimationFrame() {
@@ -208,73 +227,96 @@ function measureReelStep() {
   return reelStepPx;
 }
 
-function transformForRow(row) {
-  return `translate3d(0, ${-(row * reelStepPx)}px, 0)`;
-}
-
-function parkColumnAtRow(column, row) {
-  column.getAnimations().forEach((animation) => animation.cancel());
-  column.style.transition = 'none';
-  column.style.transform = transformForRow(row);
-  column.dataset.row = String(row);
-}
-
-function normalizeRowsToValue(value = displayedValue.value) {
-  const digits = pad(value).split('').map(Number);
-  const columns = getColumns();
-  currentDigits = digits;
-  measureReelStep();
-  columns.forEach((column, index) => {
-    parkColumnAtRow(column, currentDigits[index] ?? 0);
+function renderReel(reel, position) {
+  const slots = [...reel.querySelectorAll('.reel-digit')];
+  const baseRow = Math.floor(position);
+  slots.forEach((slot, slotIndex) => {
+    const offset = REEL_VISIBLE_OFFSETS[slotIndex] ?? 0;
+    const row = baseRow + offset;
+    const y = (row - position) * reelStepPx;
+    const distance = Math.abs(row - position);
+    const digitNode = slot.querySelector('b');
+    if (digitNode) digitNode.textContent = String(digitAtRow(row));
+    slot.style.transform = `translate3d(0, ${y}px, 0)`;
+    slot.style.opacity = String(Math.max(0, 1 - distance * 0.23));
+    slot.style.setProperty('--digit-scale', String(Math.max(0.86, 1 - distance * 0.035)));
   });
+}
+
+function renderReels() {
+  if (!reelStepPx && !measureReelStep()) return;
+  getReels().forEach((reel, index) => {
+    renderReel(reel, reelPositions[index] ?? 0);
+  });
+}
+
+function setReelsToValue(value = displayedValue.value) {
+  const digits = pad(value).split('').map(Number);
+  reelPositions = digits.map((digit) => digit);
+  renderReels();
 }
 
 async function setupReels(value = displayedValue.value) {
   await nextTick();
   await document.fonts?.ready?.catch?.(() => null);
   measureReelStep();
-  normalizeRowsToValue(value);
+  setReelsToValue(value);
 }
 
-function removeActiveAnimation(animation) {
-  activeAnimations = activeAnimations.filter((item) => item !== animation);
+function easeOutCubic(t) {
+  const inv = 1 - t;
+  return 1 - inv * inv * inv;
 }
 
-async function animateColumnToDigit(column, index, fromDigit, targetDigit, durationMs) {
-  const loopRows = (REEL_LOOPS + index + 1) * 10;
-  const endRow = loopRows + targetDigit;
-  const startTransform = transformForRow(fromDigit);
-  const endTransform = transformForRow(endRow);
-  const animation = column.animate(
-    [
-      { transform: startTransform, offset: 0 },
-      { transform: transformForRow(Math.max(fromDigit, endRow - 13)), offset: 0.82 },
-      { transform: endTransform, offset: 1 }
-    ],
-    {
-      duration: durationMs + index * 170,
-      easing: 'cubic-bezier(.18,.82,.18,1)',
-      fill: 'forwards'
-    }
-  );
+function targetRowForDigit(fromRow, targetDigit, index) {
+  const startRow = Math.round(fromRow);
+  const currentDigit = positiveModulo(startRow, 10);
+  const digitDelta = positiveModulo(targetDigit - currentDigit, 10);
+  return startRow + (REEL_LOOPS + index) * 10 + digitDelta;
+}
 
-  activeAnimations.push(animation);
+function animateRows(fromRows, targetRows, durationMs) {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const timings = targetRows.map((_, index) => ({
+      delay: index * 95,
+      duration: durationMs + index * 155
+    }));
+    const totalMs = Math.max(...timings.map((timing) => timing.delay + timing.duration));
 
-  try {
-    await animation.finished;
-  } catch {
-    // A cancelled animation is expected during reset, resize, or component teardown.
-  } finally {
-    removeActiveAnimation(animation);
-    animation.cancel();
-    parkColumnAtRow(column, targetDigit);
-  }
+    const tick = (now) => {
+      const elapsed = now - start;
+      let complete = true;
+
+      targetRows.forEach((targetRow, index) => {
+        const { delay, duration } = timings[index];
+        const local = Math.min(1, Math.max(0, (elapsed - delay) / duration));
+        if (local < 1) complete = false;
+        const eased = easeOutCubic(local);
+        reelPositions[index] = fromRows[index] + (targetRow - fromRows[index]) * eased;
+      });
+
+      renderReels();
+
+      if (!complete || elapsed < totalMs) {
+        spinFrame = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      spinFrame = 0;
+      reelPositions = targetRows.map((row) => Math.round(row));
+      renderReels();
+      resolve();
+    };
+
+    spinFrame = window.requestAnimationFrame(tick);
+  });
 }
 
 async function spinTo(value) {
   if (rolling.value) return;
-  const columns = getColumns();
-  if (!columns.length) {
+  const reels = getReels();
+  if (!reels.length) {
     displayedValue.value = value;
     return;
   }
@@ -282,7 +324,7 @@ async function spinTo(value) {
   measureReelStep();
   if (!reelStepPx) {
     displayedValue.value = value;
-    normalizeRowsToValue(value);
+    setReelsToValue(value);
     return;
   }
 
@@ -293,29 +335,34 @@ async function spinTo(value) {
 
   const fromDigits = pad(displayedValue.value).split('').map(Number);
   const targetDigits = pad(value).split('').map(Number);
-  const durationMs = Math.max(850, spinInput.value * 1000);
 
-  columns.forEach((column, index) => {
-    parkColumnAtRow(column, fromDigits[index] ?? 0);
-  });
+  while (reelPositions.length < state.value.digits) {
+    reelPositions.push(fromDigits[reelPositions.length] ?? 0);
+  }
 
-  // Commit the parked transforms before starting the WAAPI reel animations.
-  reelsRoot.value?.getBoundingClientRect();
-  await nextAnimationFrame();
+  const fromRows = reelPositions
+    .slice(0, state.value.digits)
+    .map((row, index) => Math.round(Number.isFinite(row) ? row : fromDigits[index] ?? 0));
+  const targetRows = targetDigits.map((digit, index) => targetRowForDigit(fromRows[index] ?? 0, digit, index));
+  const durationMs = Math.max(900, spinInput.value * 1000);
+
+  reelPositions = [...fromRows];
+  renderReels();
+
   await nextAnimationFrame();
 
   try {
-    await Promise.all(columns.map((column, index) => animateColumnToDigit(
-      column,
-      index,
-      fromDigits[index] ?? 0,
-      targetDigits[index] ?? 0,
-      durationMs
-    )));
+    await animateRows(fromRows, targetRows, durationMs);
   } finally {
+    const finalDigits = targetRows.map((row) => digitAtRow(row));
+    const expectedDigits = targetDigits.join('');
+    const actualDigits = finalDigits.join('');
     displayedValue.value = value;
-    currentDigits = targetDigits;
-    normalizeRowsToValue(value);
+
+    if (actualDigits !== expectedDigits) {
+      setReelsToValue(value);
+    }
+
     rolling.value = false;
   }
 }

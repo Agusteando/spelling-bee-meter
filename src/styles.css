@@ -211,10 +211,22 @@ input {
   background: linear-gradient(to top, rgba(28, 19, 10, 0.58), rgba(65, 43, 22, 0.16), transparent);
 }
 
-.numbers {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.reel-window {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: strict;
+}
+
+.reel-digit {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: var(--reel-step);
   font-family: 'Fredoka', 'Fredoka One', system-ui, sans-serif;
   font-size: var(--digit-size);
   font-weight: 700;
@@ -229,26 +241,17 @@ input {
     0 0 0.3em rgba(255, 205, 78, 0.64);
   -webkit-text-stroke: 0.03em #24160c;
   paint-order: stroke fill;
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
+  will-change: transform, opacity;
   backface-visibility: hidden;
-  transform-style: preserve-3d;
-  contain: content;
+  transform: translate3d(0, 0, 0);
+  contain: layout paint style;
 }
 
-.numbers span {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: var(--reel-step);
-  flex: 0 0 var(--reel-step);
-  line-height: 1;
-}
-
-.numbers span b {
+.reel-digit b {
   display: block;
   line-height: 1;
-  transform: translateY(-0.035em);
+  transform: translateY(-0.035em) scale(var(--digit-scale, 1));
+  transform-origin: 50% 50%;
 }
 
 .draw-hint {
