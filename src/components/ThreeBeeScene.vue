@@ -58,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-132500';
+const BUILD_STAMP = '20260611-134500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -607,7 +607,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     travelLift,
     curve,
     bob,
-    currentTexture: beeRightTexture,
+    directionSign: 1,
     lastPosition: startPatch.clone(),
     samplePosition: startPatch.clone(),
     targetPosition: startPatch.clone(),
@@ -870,11 +870,9 @@ function updateBees(loopTime) {
       actor.directionCooldownUntil = loopTime + 0.75 + actor.hoverEnergy * 0.32;
     }
 
-    const targetTexture = actor.lastDirectionX >= 0 ? beeRightTexture : beeLeftTexture;
-    if (actor.currentTexture !== targetTexture) {
-      actor.material.map = targetTexture;
-      actor.material.needsUpdate = true;
-      actor.currentTexture = targetTexture;
+    const nextDirectionSign = actor.lastDirectionX >= 0 ? 1 : -1;
+    if (actor.directionSign !== nextDirectionSign) {
+      actor.directionSign = nextDirectionSign;
       actor.bank = 0;
       actor.tilt = 0;
       actor.visualRotation = 0;
@@ -884,8 +882,9 @@ function updateBees(loopTime) {
     const wingPulse = 1 + Math.sin(loopTime * wingTempo + actor.phase * Math.PI * 4) * (0.045 + actor.dartEnergy * 0.018);
     const bodySqueeze = 1 + Math.cos(loopTime * (10.5 + actor.dartEnergy * 2.5) + actor.phase * Math.PI * 3) * 0.032;
     const hoverPulse = 1 + Math.sin(loopTime * 2.2 + actor.phase * 9) * actor.hoverEnergy * 0.018;
+    const scaledX = actor.baseScale.x * wingPulse * hoverPulse;
     actor.sprite.scale.set(
-      actor.baseScale.x * wingPulse * hoverPulse,
+      scaledX * actor.directionSign,
       actor.baseScale.y * bodySqueeze,
       1
     );

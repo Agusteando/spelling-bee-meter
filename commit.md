@@ -1,1 +1,1 @@
-Corrige UV vertical de abejas renderizadas como planos
+Usa una sola textura de abeja y cambia dirección con espejo horizontal
