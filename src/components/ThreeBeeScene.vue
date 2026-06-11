@@ -58,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-134500';
+const BUILD_STAMP = '20260611-140000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -885,7 +885,7 @@ function updateBees(loopTime) {
     const scaledX = actor.baseScale.x * wingPulse * hoverPulse;
     actor.sprite.scale.set(
       scaledX * actor.directionSign,
-      actor.baseScale.y * bodySqueeze,
+      -actor.baseScale.y * bodySqueeze,
       1
     );
 
