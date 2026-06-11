@@ -1,1 +1,1 @@
-Actualiza el logo del evento y añade el año actual en escena
+Actualiza el logo inferior y elimina el año separado
