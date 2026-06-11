@@ -25,6 +25,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   PerspectiveCamera,
+  PlaneGeometry,
   Points,
   Scene,
   ShaderMaterial,
@@ -40,6 +41,7 @@ import { SparkRenderer, SplatMesh } from '@sparkjsdev/spark';
 
 import beeRightUrl from '../assets/spelling/bee_right.png';
 import beeLeftUrl from '../assets/spelling/bee_left.png';
+import butterflyWingUrl from '../assets/spelling/butterfly_wing.png';
 
 const props = defineProps({
   slowDriftEnabled: {
@@ -54,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-081500';
+const BUILD_STAMP = '20260611-083500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -292,15 +294,16 @@ const FLOWER_PATCHES = [
 ];
 
 const BUTTERFLY_PALETTE = [
-  { top: '#f47caf', bottom: '#ffd861', accent: '#fff6c7' },
-  { top: '#6ecbe2', bottom: '#d7f7ff', accent: '#ffffff' },
-  { top: '#8f86ff', bottom: '#ded8ff', accent: '#fff0a6' },
-  { top: '#ff986d', bottom: '#ffe0c4', accent: '#fff5cf' },
-  { top: '#80ca6b', bottom: '#ddf3aa', accent: '#fff7c4' },
-  { top: '#e978be', bottom: '#ffd6ef', accent: '#ffffff' }
+  { top: '#ff91cf', bottom: '#ffe6b5', accent: '#9cf3dc' },
+  { top: '#78d4ff', bottom: '#f5f9ff', accent: '#b2faff' },
+  { top: '#9f8dff', bottom: '#f2e7ff', accent: '#fff2b0' },
+  { top: '#ffab7e', bottom: '#fff0d3', accent: '#ffe6a4' },
+  { top: '#8add91', bottom: '#efffe1', accent: '#d1ffe9' },
+  { top: '#ff8ad1', bottom: '#fff4f8', accent: '#f8d7ff' }
 ];
 
-const butterflyWingMaterials = new Map();
+const butterflyWingMaterialSets = new Map();
+let butterflyWingTexture;
 let butterflyWingGeometry;
 let butterflyAbdomenGeometry;
 let butterflyThoraxGeometry;
@@ -319,21 +322,9 @@ function createIndexedGeometry(points, indices, uvs = null) {
 }
 
 function createButterflyWingGeometry() {
-  return createIndexedGeometry([
-    0.0, 0.105, 0,
-    0.11, 0.155, 0,
-    0.235, 0.07, 0,
-    0.22, -0.105, 0,
-    0.08, -0.155, 0,
-    0.0, -0.085, 0
-  ], [0, 1, 5, 1, 2, 5, 2, 3, 4, 2, 4, 5], [
-    0.0, 0.86,
-    0.48, 1.0,
-    1.0, 0.72,
-    0.94, 0.18,
-    0.34, 0.0,
-    0.0, 0.28
-  ]);
+  const geometry = registerDisposable(new PlaneGeometry(0.42, 0.76, 1, 1));
+  geometry.translate(0.175, 0.08, 0);
+  return geometry;
 }
 
 function ensureButterflyGeometry() {
@@ -365,93 +356,23 @@ function ensureButterflyGeometry() {
   }));
 }
 
-function createButterflyWingTexture(palette) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 160;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 160, 160);
-
-  const upperGradient = ctx.createRadialGradient(36, 48, 4, 96, 54, 112);
-  upperGradient.addColorStop(0, palette.accent);
-  upperGradient.addColorStop(0.28, palette.top);
-  upperGradient.addColorStop(0.72, palette.bottom);
-  upperGradient.addColorStop(1, 'rgba(255,255,255,0.08)');
-
-  ctx.fillStyle = upperGradient;
-  ctx.beginPath();
-  ctx.moveTo(2, 78);
-  ctx.bezierCurveTo(16, 26, 74, 2, 148, 36);
-  ctx.bezierCurveTo(152, 72, 108, 96, 58, 88);
-  ctx.bezierCurveTo(34, 84, 14, 82, 2, 78);
-  ctx.closePath();
-  ctx.fill();
-
-  const lowerGradient = ctx.createLinearGradient(18, 88, 138, 150);
-  lowerGradient.addColorStop(0, palette.accent);
-  lowerGradient.addColorStop(0.38, palette.bottom);
-  lowerGradient.addColorStop(1, palette.top);
-
-  ctx.fillStyle = lowerGradient;
-  ctx.beginPath();
-  ctx.moveTo(4, 86);
-  ctx.bezierCurveTo(42, 88, 126, 96, 142, 150);
-  ctx.bezierCurveTo(80, 154, 24, 128, 2, 92);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.globalAlpha = 0.36;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.8;
-  for (let i = 0; i < 5; i += 1) {
-    const y = 69 + i * 6;
-    ctx.beginPath();
-    ctx.moveTo(10, 78);
-    ctx.bezierCurveTo(42 + i * 7, y - 38, 78 + i * 8, y - 34, 128, y - 18);
-    ctx.stroke();
-  }
-
-  ctx.globalAlpha = 0.32;
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 4; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(16, 90);
-    ctx.bezierCurveTo(42 + i * 8, 96 + i * 5, 76 + i * 10, 118 + i * 5, 122, 146 - i * 4);
-    ctx.stroke();
-  }
-
-  ctx.globalAlpha = 0.42;
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.ellipse(92, 42, 13, 7, -0.35, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(68, 111, 8, 5, 0.42, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.globalAlpha = 0.52;
-  ctx.strokeStyle = 'rgba(75,46,21,0.55)';
-  ctx.lineWidth = 2.2;
-  ctx.beginPath();
-  ctx.moveTo(2, 78);
-  ctx.bezierCurveTo(16, 26, 74, 2, 148, 36);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(4, 86);
-  ctx.bezierCurveTo(42, 88, 126, 96, 142, 150);
-  ctx.stroke();
-
-  const texture = registerTexture(new CanvasTexture(canvas));
-  texture.colorSpace = SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
+function getButterflyWingTexture() {
+  if (butterflyWingTexture) return butterflyWingTexture;
+  butterflyWingTexture = registerTexture(loader.load(butterflyWingUrl));
+  configureTexture(butterflyWingTexture);
+  butterflyWingTexture.needsUpdate = true;
+  return butterflyWingTexture;
 }
 
-function getButterflyWingMaterial(paletteIndex) {
-  if (butterflyWingMaterials.has(paletteIndex)) return butterflyWingMaterials.get(paletteIndex);
+function getButterflyWingMaterials(paletteIndex) {
+  if (butterflyWingMaterialSets.has(paletteIndex)) return butterflyWingMaterialSets.get(paletteIndex);
+
   const palette = BUTTERFLY_PALETTE[paletteIndex % BUTTERFLY_PALETTE.length];
-  const material = registerDisposable(new MeshBasicMaterial({
-    map: createButterflyWingTexture(palette),
+  const texture = getButterflyWingTexture();
+
+  const baseMaterial = registerDisposable(new MeshBasicMaterial({
+    map: texture,
+    color: palette.bottom,
     side: DoubleSide,
     transparent: true,
     opacity: 0.96,
@@ -459,8 +380,34 @@ function getButterflyWingMaterial(paletteIndex) {
     depthTest: true,
     alphaTest: 0.04
   }));
-  butterflyWingMaterials.set(paletteIndex, material);
-  return material;
+
+  const overlayMaterial = registerDisposable(new MeshBasicMaterial({
+    map: texture,
+    color: palette.top,
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.24,
+    depthWrite: false,
+    depthTest: true,
+    alphaTest: 0.04,
+    blending: AdditiveBlending
+  }));
+
+  const sparkleMaterial = registerDisposable(new MeshBasicMaterial({
+    map: texture,
+    color: palette.accent,
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.12,
+    depthWrite: false,
+    depthTest: true,
+    alphaTest: 0.08,
+    blending: AdditiveBlending
+  }));
+
+  const materials = { baseMaterial, overlayMaterial, sparkleMaterial };
+  butterflyWingMaterialSets.set(paletteIndex, materials);
+  return materials;
 }
 
 function configureTexture(texture, repeatX = 1, repeatY = 1) {
@@ -499,16 +446,39 @@ function createButterflyActor({
   const rightPivot = new Group();
   root.add(leftPivot, rightPivot);
 
-  const material = getButterflyWingMaterial(paletteIndex);
-  const leftWing = new Mesh(butterflyWingGeometry, material);
-  const rightWing = new Mesh(butterflyWingGeometry, material);
+  const { baseMaterial, overlayMaterial, sparkleMaterial } = getButterflyWingMaterials(paletteIndex);
+  const leftWing = new Mesh(butterflyWingGeometry, baseMaterial);
+  const rightWing = new Mesh(butterflyWingGeometry, baseMaterial);
+  const leftWingOverlay = new Mesh(butterflyWingGeometry, overlayMaterial);
+  const rightWingOverlay = new Mesh(butterflyWingGeometry, overlayMaterial);
+  const leftWingSparkle = new Mesh(butterflyWingGeometry, sparkleMaterial);
+  const rightWingSparkle = new Mesh(butterflyWingGeometry, sparkleMaterial);
+
   leftWing.scale.x = -1;
-  leftWing.position.z = 0.002;
-  rightWing.position.z = -0.002;
+  leftWingOverlay.scale.x = -1;
+  leftWingSparkle.scale.x = -1;
+
+  leftWing.position.z = 0.001;
+  rightWing.position.z = -0.001;
+  leftWingOverlay.position.z = 0.0024;
+  rightWingOverlay.position.z = -0.0024;
+  leftWingSparkle.position.z = 0.0034;
+  rightWingSparkle.position.z = -0.0034;
+
+  leftWingOverlay.scale.multiplyScalar(1.015);
+  rightWingOverlay.scale.multiplyScalar(1.015);
+  leftWingSparkle.scale.multiplyScalar(1.03);
+  rightWingSparkle.scale.multiplyScalar(1.03);
+
   leftWing.renderOrder = 42;
   rightWing.renderOrder = 42;
-  leftPivot.add(leftWing);
-  rightPivot.add(rightWing);
+  leftWingOverlay.renderOrder = 43;
+  rightWingOverlay.renderOrder = 43;
+  leftWingSparkle.renderOrder = 44;
+  rightWingSparkle.renderOrder = 44;
+
+  leftPivot.add(leftWing, leftWingOverlay, leftWingSparkle);
+  rightPivot.add(rightWing, rightWingOverlay, rightWingSparkle);
 
   const bodyGroup = new Group();
   const abdomen = new Mesh(butterflyAbdomenGeometry, butterflyAbdomenMaterial);

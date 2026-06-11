@@ -1,1 +1,1 @@
-Añade soundboard procedural épico para loader escena y sorteo
+Usa el ala cargada para mariposas con espejo y tintes por color
