@@ -1,1 +1,1 @@
-Agrega helper faltante para geometría de abejas en plano
+Corrige UV vertical de abejas renderizadas como planos

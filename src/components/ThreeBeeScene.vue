@@ -58,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-131500';
+const BUILD_STAMP = '20260611-132500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -567,6 +567,11 @@ function loadBeeTexture(url) {
 function ensureBeeGeometry() {
   if (beePlaneGeometry) return beePlaneGeometry;
   beePlaneGeometry = registerDisposable(new PlaneGeometry(1, 1.18, 1, 1));
+  const uv = beePlaneGeometry.attributes.uv;
+  for (let index = 0; index < uv.count; index += 1) {
+    uv.setY(index, 1 - uv.getY(index));
+  }
+  uv.needsUpdate = true;
   beePlaneGeometry.translate(0, 0.08, 0);
   return beePlaneGeometry;
 }
