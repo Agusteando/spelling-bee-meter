@@ -1,1 +1,1 @@
-Elimina dependencia de MultiplyBlending en alas de mariposa
+Sustituye el asset del ala de mariposa por la nueva versión
