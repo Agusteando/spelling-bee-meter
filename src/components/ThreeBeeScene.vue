@@ -51,12 +51,16 @@ const props = defineProps({
   splatEnabled: {
     type: Boolean,
     default: true
+  },
+  meterRolling: {
+    type: Boolean,
+    default: false
   }
 });
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-120000';
+const BUILD_STAMP = '20260611-124500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -345,7 +349,7 @@ function ensureButterflyGeometry() {
   butterflyAbdomenMaterial ??= registerDisposable(new MeshBasicMaterial({
     color: '#5a3b1f',
     transparent: true,
-    opacity: 0.98,
+    opacity: 0.72,
     depthWrite: false,
     depthTest: true
   }));
@@ -586,7 +590,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     route,
     phase,
     baseScale: { x: scale, y: scale },
-    speed: speed * 0.62,
+    speed: speed * 0.48,
     collectRadius,
     travelLift,
     curve,
@@ -646,18 +650,12 @@ function createFlyingActors() {
   });
 
   const beeConfigs = [
-    { route: [0, 1, 3], phase: 0.02, scale: 0.044, speed: 0.86, collectRadius: 0.058, travelLift: 0.068, curve: 0.08 },
-    { route: [1, 2, 4], phase: 0.15, scale: 0.042, speed: 0.93, collectRadius: 0.062, travelLift: 0.072, curve: -0.082 },
-    { route: [2, 3, 5], phase: 0.28, scale: 0.043, speed: 0.9, collectRadius: 0.056, travelLift: 0.066, curve: 0.078 },
-    { route: [3, 4, 6], phase: 0.39, scale: 0.041, speed: 0.88, collectRadius: 0.058, travelLift: 0.07, curve: -0.076 },
-    { route: [4, 5, 7], phase: 0.5, scale: 0.043, speed: 0.95, collectRadius: 0.061, travelLift: 0.076, curve: 0.086 },
-    { route: [5, 6, 8], phase: 0.61, scale: 0.04, speed: 0.9, collectRadius: 0.056, travelLift: 0.068, curve: -0.078 },
-    { route: [6, 7, 9], phase: 0.74, scale: 0.042, speed: 0.91, collectRadius: 0.06, travelLift: 0.072, curve: 0.082 },
-    { route: [7, 8, 10], phase: 0.83, scale: 0.041, speed: 0.87, collectRadius: 0.054, travelLift: 0.069, curve: -0.084 },
-    { route: [8, 10, 11], phase: 0.91, scale: 0.04, speed: 0.97, collectRadius: 0.053, travelLift: 0.074, curve: 0.078 },
-    { route: [2, 6, 9], phase: 0.08, scale: 0.042, speed: 0.89, collectRadius: 0.058, travelLift: 0.072, curve: -0.082 },
-    { route: [1, 5, 8], phase: 0.36, scale: 0.041, speed: 0.9, collectRadius: 0.056, travelLift: 0.07, curve: 0.08 },
-    { route: [4, 8, 11], phase: 0.58, scale: 0.04, speed: 0.92, collectRadius: 0.054, travelLift: 0.073, curve: -0.078 }
+    { route: [0, 1], phase: 0.04, scale: 0.034, speed: 0.64, collectRadius: 0.038, travelLift: 0.038, curve: 0.038, bob: 0.012 },
+    { route: [2, 3], phase: 0.19, scale: 0.033, speed: 0.58, collectRadius: 0.036, travelLift: 0.036, curve: -0.034, bob: 0.011 },
+    { route: [5, 6], phase: 0.36, scale: 0.035, speed: 0.61, collectRadius: 0.039, travelLift: 0.04, curve: 0.036, bob: 0.012 },
+    { route: [7, 8], phase: 0.53, scale: 0.032, speed: 0.56, collectRadius: 0.035, travelLift: 0.034, curve: -0.032, bob: 0.011 },
+    { route: [9, 10], phase: 0.7, scale: 0.033, speed: 0.59, collectRadius: 0.035, travelLift: 0.035, curve: 0.03, bob: 0.01 },
+    { route: [10, 11], phase: 0.86, scale: 0.032, speed: 0.55, collectRadius: 0.034, travelLift: 0.032, curve: -0.03, bob: 0.01 }
   ];
 
   beeConfigs.forEach(createBeeActor);
@@ -758,24 +756,23 @@ function sampleBeeSegment(actor, loopProgress, target) {
   const normalX = -beeVector.z / flatLength;
   const normalZ = beeVector.x / flatLength;
 
-  const collectPortion = 0.44;
-  const transitEnd = 0.78;
-  const rhythm = Math.sin((loopProgress * 22.0) + actor.phase * Math.PI * 12);
+  const calmFactor = props.meterRolling ? 0.28 : 1;
+  const collectPortion = props.meterRolling ? 0.86 : 0.68;
+  const transitEnd = props.meterRolling ? 0.94 : 0.86;
   const driftPhase = actor.phase * Math.PI * 8;
 
   if (local < collectPortion) {
     const u = local / collectPortion;
     const hoverEase = 1 - Math.abs(0.5 - u) * 2;
-    const angle = (u * Math.PI * 2.35) + driftPhase;
-    const radiusPulse = 0.72 + Math.sin(u * Math.PI * 4 + driftPhase) * 0.16;
-    actor.hoverEnergy = 0.82 + hoverEase * 0.18;
-    actor.dartEnergy = 0.1 + Math.max(0, rhythm) * 0.08;
+    const angle = (u * Math.PI * 1.75) + driftPhase;
+    const radiusPulse = 0.82 + Math.sin(u * Math.PI * 3 + driftPhase) * 0.08;
+    actor.hoverEnergy = 0.84 + hoverEase * 0.16;
+    actor.dartEnergy = 0.05 * calmFactor;
 
     target.copy(from);
-    target.x += Math.cos(angle) * actor.collectRadius * radiusPulse;
-    target.z += Math.sin(angle * 1.08) * actor.collectRadius * 0.52 * radiusPulse;
-    target.y += Math.sin(angle * 2.4) * actor.bob * 0.55;
-    target.y += Math.sin((u + actor.phase) * Math.PI * 10) * actor.bob * 0.16;
+    target.x += Math.cos(angle) * actor.collectRadius * radiusPulse * calmFactor;
+    target.z += Math.sin(angle * 1.04) * actor.collectRadius * 0.45 * radiusPulse * calmFactor;
+    target.y += Math.sin(angle * 1.8) * actor.bob * 0.36 * calmFactor;
     return target;
   }
 
@@ -783,28 +780,27 @@ function sampleBeeSegment(actor, loopProgress, target) {
     const u = (local - collectPortion) / (transitEnd - collectPortion);
     const eased = 0.5 - Math.cos(u * Math.PI) * 0.5;
     const dart = Math.sin(u * Math.PI);
-    const microWeave = Math.sin((u * Math.PI * 3.2) + driftPhase) * (1 - Math.abs(0.5 - u));
-    actor.hoverEnergy = Math.max(0, 1 - dart * 1.55);
-    actor.dartEnergy = 0.28 + dart * 0.72;
+    const microWeave = Math.sin((u * Math.PI * 2.2) + driftPhase) * (1 - Math.abs(0.5 - u));
+    actor.hoverEnergy = Math.max(0.32, 1 - dart * 0.78);
+    actor.dartEnergy = (0.12 + dart * 0.32) * calmFactor;
 
     target.copy(from).lerp(to, eased);
-    target.x += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.025) * normalX;
-    target.z += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.025) * normalZ;
-    target.y += Math.sin(u * Math.PI) * actor.travelLift * 0.78;
-    target.y += Math.sin(u * Math.PI * 2 + driftPhase) * actor.bob * 0.18;
+    target.x += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.01) * normalX * calmFactor;
+    target.z += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.01) * normalZ * calmFactor;
+    target.y += Math.sin(u * Math.PI) * actor.travelLift * 0.42 * calmFactor;
     return target;
   }
 
   const u = (local - transitEnd) / (1 - transitEnd);
-  const angle = (u * Math.PI * 2.15) + driftPhase + Math.PI * 0.4;
+  const angle = (u * Math.PI * 1.55) + driftPhase + Math.PI * 0.4;
   const settle = MathUtils.smoothstep(u, 0, 1);
-  actor.hoverEnergy = 0.68 + settle * 0.28;
-  actor.dartEnergy = 0.16 + (1 - settle) * 0.22;
+  actor.hoverEnergy = 0.76 + settle * 0.18;
+  actor.dartEnergy = 0.07 * calmFactor;
 
   target.copy(to);
-  target.x += Math.cos(angle) * actor.collectRadius * 0.66;
-  target.z += Math.sin(angle * 1.12) * actor.collectRadius * 0.46;
-  target.y += Math.cos(angle * 2.15) * actor.bob * 0.48;
+  target.x += Math.cos(angle) * actor.collectRadius * 0.38 * calmFactor;
+  target.z += Math.sin(angle * 1.08) * actor.collectRadius * 0.28 * calmFactor;
+  target.y += Math.cos(angle * 1.8) * actor.bob * 0.24 * calmFactor;
   return target;
 }
 
@@ -820,20 +816,20 @@ function updateBees(loopTime) {
 
   beeActors.forEach((actor) => {
     const target = sampleBeeSegment(actor, loopProgress, actor.targetPosition);
-    const followAlpha = 0.038 + actor.dartEnergy * 0.035;
+    const sceneCalm = props.meterRolling ? 0.35 : 1;
+    const followAlpha = (0.024 + actor.dartEnergy * 0.018) * sceneCalm;
     const previousPosition = actor.sprite.position.clone();
 
     beeFollowVector.subVectors(target, actor.sprite.position);
     actor.sprite.position.addScaledVector(beeFollowVector, followAlpha);
 
-    const jitter = 0.0018 + actor.hoverEnergy * 0.0018;
-    actor.sprite.position.x += Math.sin(loopTime * 6.3 + actor.phase * 17) * jitter;
-    actor.sprite.position.y += Math.sin(loopTime * 8.2 + actor.phase * 13) * jitter * 0.72;
+    const hoverBob = (0.0007 + actor.hoverEnergy * 0.0008) * sceneCalm;
+    actor.sprite.position.y += Math.sin(loopTime * 4.1 + actor.phase * 13) * hoverBob;
 
     actor.smoothedVelocity.subVectors(actor.sprite.position, previousPosition);
-    actor.smoothedVelocity.multiplyScalar(0.58).addScaledVector(
+    actor.smoothedVelocity.multiplyScalar(0.72).addScaledVector(
       beeFollowVector,
-      0.42 * followAlpha
+      0.28 * followAlpha
     );
 
     const screenVelocityX = (actor.smoothedVelocity.x * cameraRightX)
@@ -866,30 +862,29 @@ function updateBees(loopTime) {
       actor.material.map = targetTexture;
       actor.material.needsUpdate = true;
       actor.currentTexture = targetTexture;
+      actor.bank = 0;
+      actor.tilt = 0;
       actor.visualRotation = 0;
       actor.sprite.material.rotation = 0;
     }
 
-    const wingTempo = 18.5 + actor.dartEnergy * 7.0;
-    const wingPulse = 1 + Math.sin(loopTime * wingTempo + actor.phase * Math.PI * 4) * (0.075 + actor.dartEnergy * 0.035);
-    const bodySqueeze = 1 + Math.cos(loopTime * (13.5 + actor.dartEnergy * 5.0) + actor.phase * Math.PI * 3) * 0.055;
-    const hoverPulse = 1 + Math.sin(loopTime * 3.1 + actor.phase * 9) * actor.hoverEnergy * 0.035;
+    const wingTempo = 15.5 + actor.dartEnergy * 3.0;
+    const wingPulse = 1 + Math.sin(loopTime * wingTempo + actor.phase * Math.PI * 4) * (0.045 + actor.dartEnergy * 0.018);
+    const bodySqueeze = 1 + Math.cos(loopTime * (10.5 + actor.dartEnergy * 2.5) + actor.phase * Math.PI * 3) * 0.032;
+    const hoverPulse = 1 + Math.sin(loopTime * 2.2 + actor.phase * 9) * actor.hoverEnergy * 0.018;
     actor.sprite.scale.set(
       actor.baseScale.x * wingPulse * hoverPulse,
       actor.baseScale.y * bodySqueeze,
       1
     );
 
-    const targetBank = MathUtils.clamp(-screenVelocityX * 12, -0.11, 0.11);
-    const targetTilt = MathUtils.clamp(screenVelocityY * 3.2, -0.055, 0.055);
-    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.09);
-    actor.tilt = MathUtils.lerp(actor.tilt, targetTilt, 0.08);
-    const wingWobble = Math.sin(loopTime * 4.2 + actor.phase * 11) * actor.hoverEnergy * 0.012;
-    const targetRotation = MathUtils.clamp(actor.bank + actor.tilt + wingWobble, -0.145, 0.145);
-    actor.visualRotation = MathUtils.lerp(actor.visualRotation, targetRotation, 0.12);
-    actor.sprite.material.rotation = actor.visualRotation;
+    actor.bank = 0;
+    actor.tilt = 0;
+    actor.visualRotation = 0;
+    actor.sprite.material.rotation = 0;
 
-    actor.material.opacity = 0.91 + Math.sin(loopTime * 4.2 + actor.phase * Math.PI * 3) * 0.035;
+    const targetOpacity = props.meterRolling ? 0.38 : 0.68;
+    actor.material.opacity = targetOpacity + Math.sin(loopTime * 2.4 + actor.phase * Math.PI * 3) * 0.018;
     actor.lastPosition.copy(actor.sprite.position);
     actor.samplePosition.copy(target);
   });

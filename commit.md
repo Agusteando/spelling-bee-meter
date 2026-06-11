@@ -1,1 +1,1 @@
-Evita que las abejas sprite se inviertan durante el vuelo
+Reduce abejas y fija sprites siempre en orientación vertical
