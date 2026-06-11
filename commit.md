@@ -1,1 +1,1 @@
-Reduce abejas y fija sprites siempre en orientación vertical
+Sustituye abejas Sprite por planos orientados a cámara en yaw

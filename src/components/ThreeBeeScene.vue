@@ -29,8 +29,6 @@ import {
   Points,
   Scene,
   ShaderMaterial,
-  Sprite,
-  SpriteMaterial,
   SphereGeometry,
   SRGBColorSpace,
   TextureLoader,
@@ -60,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-124500';
+const BUILD_STAMP = '20260611-130500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -86,6 +84,7 @@ let splatMesh;
 let particleSystem;
 let beeRightTexture;
 let beeLeftTexture;
+let beePlaneGeometry;
 let pointerDown = false;
 let pointerId = null;
 let pointerStartX = 0;
@@ -566,17 +565,18 @@ function loadBeeTexture(url) {
 }
 
 function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadius = 0.072, travelLift = 0.08, curve = 0.09, bob = 0.018 }) {
-  const material = registerDisposable(new SpriteMaterial({
+  const geometry = ensureBeeGeometry();
+  const material = registerDisposable(new MeshBasicMaterial({
     color: '#ffffff',
     transparent: true,
-    opacity: 0.98,
+    opacity: 0.72,
     depthWrite: false,
     depthTest: false,
     alphaTest: 0.02,
+    side: DoubleSide,
     map: beeRightTexture
   }));
-  const sprite = new Sprite(material);
-  sprite.center.set(0.5, 0.42);
+  const sprite = new Mesh(geometry, material);
   sprite.scale.set(scale, scale, 1);
   sprite.renderOrder = 46;
   overlayRoot.add(sprite);
@@ -585,10 +585,10 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
   sprite.position.copy(startPatch);
 
   beeActors.push({
-    sprite,
-    material,
     route,
     phase,
+    sprite,
+    material,
     baseScale: { x: scale, y: scale },
     speed: speed * 0.48,
     collectRadius,
@@ -610,6 +610,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     dartEnergy: 0.12
   });
 }
+
 
 function createFlyingActors() {
   overlayRoot = new Group();
@@ -865,7 +866,6 @@ function updateBees(loopTime) {
       actor.bank = 0;
       actor.tilt = 0;
       actor.visualRotation = 0;
-      actor.sprite.material.rotation = 0;
     }
 
     const wingTempo = 15.5 + actor.dartEnergy * 3.0;
@@ -881,7 +881,14 @@ function updateBees(loopTime) {
     actor.bank = 0;
     actor.tilt = 0;
     actor.visualRotation = 0;
-    actor.sprite.material.rotation = 0;
+
+    if (camera) {
+      const facingYaw = Math.atan2(
+        camera.position.x - actor.sprite.position.x,
+        camera.position.z - actor.sprite.position.z
+      );
+      actor.sprite.rotation.set(0, facingYaw, 0);
+    }
 
     const targetOpacity = props.meterRolling ? 0.38 : 0.68;
     actor.material.opacity = targetOpacity + Math.sin(loopTime * 2.4 + actor.phase * Math.PI * 3) * 0.018;
