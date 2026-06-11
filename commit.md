@@ -1,1 +1,1 @@
-Suaviza el vuelo de abejas y evita giros bruscos de sprites
+Evita que las abejas sprite se inviertan durante el vuelo

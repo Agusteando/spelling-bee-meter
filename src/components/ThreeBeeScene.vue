@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-114500';
+const BUILD_STAMP = '20260611-120000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -601,6 +601,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     directionCooldownUntil: 0,
     bank: 0,
     tilt: 0,
+    visualRotation: 0,
     hoverEnergy: 1,
     dartEnergy: 0.12
   });
@@ -865,6 +866,8 @@ function updateBees(loopTime) {
       actor.material.map = targetTexture;
       actor.material.needsUpdate = true;
       actor.currentTexture = targetTexture;
+      actor.visualRotation = 0;
+      actor.sprite.material.rotation = 0;
     }
 
     const wingTempo = 18.5 + actor.dartEnergy * 7.0;
@@ -877,11 +880,14 @@ function updateBees(loopTime) {
       1
     );
 
-    const targetBank = MathUtils.clamp(-screenVelocityX * 28, -0.28, 0.28);
-    const targetTilt = MathUtils.clamp(screenVelocityY * 8 + targetBank * 0.3, -0.22, 0.22);
-    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.11);
-    actor.tilt = MathUtils.lerp(actor.tilt, targetTilt, 0.1);
-    actor.sprite.material.rotation = actor.tilt + actor.bank + Math.sin(loopTime * 4.2 + actor.phase * 11) * actor.hoverEnergy * 0.025;
+    const targetBank = MathUtils.clamp(-screenVelocityX * 12, -0.11, 0.11);
+    const targetTilt = MathUtils.clamp(screenVelocityY * 3.2, -0.055, 0.055);
+    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.09);
+    actor.tilt = MathUtils.lerp(actor.tilt, targetTilt, 0.08);
+    const wingWobble = Math.sin(loopTime * 4.2 + actor.phase * 11) * actor.hoverEnergy * 0.012;
+    const targetRotation = MathUtils.clamp(actor.bank + actor.tilt + wingWobble, -0.145, 0.145);
+    actor.visualRotation = MathUtils.lerp(actor.visualRotation, targetRotation, 0.12);
+    actor.sprite.material.rotation = actor.visualRotation;
 
     actor.material.opacity = 0.91 + Math.sin(loopTime * 4.2 + actor.phase * Math.PI * 3) * 0.035;
     actor.lastPosition.copy(actor.sprite.position);
