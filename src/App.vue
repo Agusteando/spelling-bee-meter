@@ -8,9 +8,18 @@
       />
 
       <div v-show="sceneReady" class="slot-overlay" aria-label="Spelling Bee draw meter">
-        <div ref="reelsRoot" class="reel-wrap" :class="{ rolling }" @click="draw">
-          <div v-for="position in state.digits" :key="position" class="reel">
-            <div class="numbers">
+        <div
+          ref="reelsRoot"
+          class="reel-wrap"
+          :class="{ rolling }"
+          role="button"
+          tabindex="0"
+          :aria-disabled="rolling || !sceneReady"
+          :aria-busy="rolling"
+          @click="draw"
+        >
+          <div v-for="position in state.digits" :key="`reel-${state.digits}-${position}`" class="reel">
+            <div class="numbers" aria-hidden="true">
               <span v-for="(digit, index) in reelDigits" :key="`${position}-${index}`">{{ digit }}</span>
             </div>
           </div>
@@ -69,12 +78,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 
-const BUILD_STAMP = '20260611-034800';
+const BUILD_STAMP = '20260611-041800';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
-const REEL_LOOPS = 4;
+const REEL_LOOPS = 5;
 
 const reelsRoot = ref(null);
 const rolling = ref(false);
@@ -177,6 +186,10 @@ function cancelReelTimers() {
   activeTimers = [];
 }
 
+function nextAnimationFrame() {
+  return new Promise((resolve) => window.requestAnimationFrame(resolve));
+}
+
 function setColumnRow(column, row) {
   column.style.transition = 'none';
   column.style.transform = transformForRow(row);
@@ -201,9 +214,11 @@ async function setupReels(value = displayedValue) {
 function waitForTransformEnd(column, timeoutMs) {
   return new Promise((resolve) => {
     let done = false;
+    let timer = 0;
     const finish = () => {
       if (done) return;
       done = true;
+      window.clearTimeout(timer);
       column.removeEventListener('transitionend', onEnd);
       resolve();
     };
@@ -211,7 +226,7 @@ function waitForTransformEnd(column, timeoutMs) {
       if (event.propertyName === 'transform') finish();
     };
     column.addEventListener('transitionend', onEnd);
-    const timer = window.setTimeout(finish, timeoutMs + 120);
+    timer = window.setTimeout(finish, timeoutMs + 180);
     activeTimers.push(timer);
   });
 }
@@ -231,30 +246,40 @@ async function spinTo(value) {
   setSpinTimeCss();
   await nextTick();
 
+  const fromDigits = pad(displayedValue).split('').map(Number);
   const targetDigits = pad(value).split('').map(Number);
   const durationMs = Math.max(700, spinInput.value * 1000);
 
-  await Promise.all(columns.map(async (column, index) => {
-    const targetDigit = targetDigits[index] ?? 0;
-    const loops = REEL_LOOPS + index;
-    const endRow = loops * 10 + targetDigit;
-    const localDuration = durationMs + index * 120;
+  columns.forEach((column, index) => {
+    setColumnRow(column, fromDigits[index] ?? 0);
+    // Force the browser to commit the parked row before the rolling transform.
+    // Without this, rapid repeat draws can collapse into a jump on some browsers.
+    column.getBoundingClientRect();
+  });
 
-    // Match the original project behavior: do not reset the visible reel before spinning.
-    // The column is already parked on the current digit; we only transition to a far
-    // repeated row of the target digit, then invisibly park it back on that same digit.
-    column.style.transition = `transform ${localDuration}ms cubic-bezier(.32,.02,.19,1)`;
-    column.style.transform = transformForRow(endRow);
+  await nextAnimationFrame();
+  await nextAnimationFrame();
 
-    await waitForTransformEnd(column, localDuration);
+  try {
+    await Promise.all(columns.map(async (column, index) => {
+      const targetDigit = targetDigits[index] ?? 0;
+      const loops = REEL_LOOPS + index;
+      const endRow = loops * 10 + targetDigit;
+      const localDuration = durationMs + index * 135;
 
-    setColumnRow(column, targetDigit);
-  }));
+      column.style.transition = `transform ${localDuration}ms cubic-bezier(.23,.72,.16,1)`;
+      column.style.transform = transformForRow(endRow);
 
-  cancelReelTimers();
-  displayedValue = value;
-  currentDigits = targetDigits;
-  rolling.value = false;
+      await waitForTransformEnd(column, localDuration);
+      setColumnRow(column, targetDigit);
+    }));
+  } finally {
+    cancelReelTimers();
+    displayedValue = value;
+    currentDigits = targetDigits;
+    columns.forEach((column, index) => setColumnRow(column, currentDigits[index] ?? 0));
+    rolling.value = false;
+  }
 }
 
 async function draw() {
@@ -305,8 +330,13 @@ function applyDuration() {
   setSpinTimeCss();
 }
 
+function isEditableTarget(target) {
+  const element = target instanceof Element ? target : null;
+  return Boolean(element?.closest('input, textarea, select, button, [contenteditable="true"]'));
+}
+
 function handleKeydown(event) {
-  if (event.key === ' ') {
+  if (event.key === ' ' && !isEditableTarget(event.target)) {
     event.preventDefault();
     draw();
   }

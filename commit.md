@@ -1,1 +1,1 @@
-Reemplaza las abejas por el nuevo sprite y corrige su dirección visual.
+Mejora el odómetro con reels más robustos y un estilo visual integrado

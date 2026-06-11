@@ -6,8 +6,8 @@
 
 :root {
   --spin-time: 5s;
-  --digit-size: clamp(3rem, min(8.4vw, 12.8dvh), 7.8rem);
-  --reel-step: calc(var(--digit-size) * 1.25);
+  --digit-size: clamp(3.35rem, min(9.3vw, 14dvh), 8.8rem);
+  --reel-step: calc(var(--digit-size) * 1.28);
   --ink: #3f2a16;
   --honey: #f8c247;
   --leaf: #91c200;
@@ -108,55 +108,63 @@ input {
   z-index: 3;
   display: grid;
   justify-items: center;
-  gap: clamp(0.32rem, 1.05dvh, 0.68rem);
-  width: min(92vw, 42rem);
+  gap: clamp(0.38rem, 1.18dvh, 0.82rem);
+  width: min(94vw, 48rem);
   max-width: 100%;
   transform: translateY(var(--slot-shift-y));
 }
 
 .reel-wrap {
   display: flex;
-  gap: 0.08em;
+  gap: 0.12em;
   width: fit-content;
-  max-width: min(92vw, 100%);
-  padding: 0.2em 0.28em 0.18em;
+  max-width: min(94vw, 100%);
+  padding: 0.19em 0.25em 0.17em;
   cursor: pointer;
   user-select: none;
-  border-radius: 1.05rem;
+  border-radius: 1.24rem;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1)),
-    radial-gradient(circle at 50% 14%, rgba(255, 238, 162, 0.34), transparent 48%),
-    rgba(80, 42, 12, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 236, 167, 0.14)),
+    radial-gradient(circle at 50% 10%, rgba(255, 241, 166, 0.42), transparent 46%),
+    linear-gradient(135deg, rgba(117, 74, 27, 0.2), rgba(255, 236, 150, 0.16));
+  border: 1px solid rgba(255, 248, 213, 0.58);
   box-shadow:
-    0 1rem 3.5rem rgba(89, 51, 19, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(7px);
-  transition: transform 220ms ease, box-shadow 220ms ease;
+    0 1.35rem 4.25rem rgba(84, 50, 18, 0.28),
+    0 0.2rem 0.8rem rgba(255, 245, 187, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62),
+    inset 0 -0.18rem 0.7rem rgba(76, 44, 18, 0.18);
+  backdrop-filter: blur(8px) saturate(1.12);
+  transition: transform 220ms ease, box-shadow 220ms ease, filter 220ms ease;
 }
 
 .reel-wrap:hover {
-  transform: translateY(-0.1rem) scale(1.012);
+  transform: translateY(-0.12rem) scale(1.015);
+  filter: saturate(1.04);
 }
 
 .reel-wrap.rolling {
   box-shadow:
-    0 1.2rem 4.6rem rgba(255, 185, 64, 0.38),
-    inset 0 0 2rem rgba(255, 213, 97, 0.2);
+    0 1.45rem 4.9rem rgba(255, 185, 64, 0.42),
+    0 0 1.5rem rgba(255, 232, 126, 0.24),
+    inset 0 0 2.2rem rgba(255, 213, 97, 0.22);
 }
 
 .reel {
   position: relative;
-  width: calc(var(--digit-size) * 0.92);
+  width: calc(var(--digit-size) * 0.9);
   height: var(--reel-step);
   overflow: hidden;
-  border-radius: 0.26em;
+  border-radius: 0.22em;
   perspective: 900px;
-  contain: paint;
+  contain: layout paint;
   background:
-    linear-gradient(180deg, rgba(255, 252, 224, 0.28), rgba(93, 55, 24, 0.24)),
-    radial-gradient(circle at 50% 50%, rgba(255, 248, 207, 0.34), rgba(102, 70, 32, 0.12)),
-    rgba(255, 255, 255, 0.18);
+    linear-gradient(180deg, rgba(255, 255, 246, 0.78), rgba(254, 229, 145, 0.42) 36%, rgba(91, 61, 31, 0.34) 100%),
+    radial-gradient(circle at 50% 48%, rgba(255, 253, 220, 0.82), rgba(246, 201, 103, 0.22) 52%, rgba(70, 42, 22, 0.28));
+  border: 1px solid rgba(255, 252, 219, 0.58);
+  box-shadow:
+    inset 0 0.08em 0.12em rgba(255, 255, 255, 0.58),
+    inset 0 -0.09em 0.18em rgba(61, 37, 19, 0.32),
+    0 0.12em 0.42em rgba(63, 39, 17, 0.16);
 }
 
 .reel::before,
@@ -166,18 +174,18 @@ input {
   left: 0;
   z-index: 1;
   width: 100%;
-  height: 28%;
+  height: 30%;
   pointer-events: none;
 }
 
 .reel::before {
   top: 0;
-  background: linear-gradient(to bottom, rgba(31, 20, 9, 0.54), rgba(31, 20, 9, 0.12), transparent);
+  background: linear-gradient(to bottom, rgba(28, 19, 10, 0.58), rgba(65, 43, 22, 0.16), transparent);
 }
 
 .reel::after {
   bottom: 0;
-  background: linear-gradient(to top, rgba(31, 20, 9, 0.54), rgba(31, 20, 9, 0.12), transparent);
+  background: linear-gradient(to top, rgba(28, 19, 10, 0.58), rgba(65, 43, 22, 0.16), transparent);
 }
 
 .numbers {
@@ -188,13 +196,15 @@ input {
   font-size: var(--digit-size);
   font-weight: 700;
   line-height: 1;
-  color: #fff8dc;
+  color: #fff6ce;
   text-shadow:
-    0 0.04em 0 #24180e,
-    0 0.08em 0 #24180e,
-    0 0 0.28em rgba(255, 207, 83, 0.8),
-    0 0.05em 0.16em rgba(33, 21, 10, 0.9);
-  -webkit-text-stroke: 0.025em #24180e;
+    0 0.035em 0 #2a1a0d,
+    0 0.07em 0 #2a1a0d,
+    0 0.018em 0.04em rgba(255, 255, 245, 0.75),
+    0 0.05em 0.18em rgba(35, 23, 11, 0.88),
+    0 0 0.3em rgba(255, 205, 78, 0.64);
+  -webkit-text-stroke: 0.03em #24160c;
+  paint-order: stroke fill;
   transform: translate3d(0, 0, 0);
   will-change: transform;
   backface-visibility: hidden;
@@ -211,9 +221,9 @@ input {
 
 .draw-hint {
   margin: 0;
-  padding: 0.48rem 0.82rem;
-  color: rgba(65, 43, 22, 0.78);
-  font-size: clamp(0.74rem, 1.1vw, 0.9rem);
+  padding: 0.52rem 0.92rem;
+  color: rgba(65, 43, 22, 0.82);
+  font-size: clamp(0.78rem, 1.16vw, 0.96rem);
   font-weight: 700;
   letter-spacing: 0.02em;
   border-radius: 999px;
@@ -372,7 +382,7 @@ input {
 
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(2.45rem, min(15.2vw, 10.8dvh), 5.75rem);
+    --digit-size: clamp(2.72rem, min(16vw, 11.4dvh), 6.15rem);
     --stage-pad-x: clamp(0.35rem, 3vw, 0.9rem);
     --stage-pad-top: calc(clamp(0.28rem, 1dvh, 0.72rem) + var(--safe-top));
     --stage-pad-bottom: calc(clamp(1.15rem, 4.2dvh, 3rem) + var(--safe-bottom));
@@ -399,7 +409,7 @@ input {
 
 @media (max-height: 620px) {
   :root {
-    --digit-size: clamp(2.05rem, min(10vw, 9.2dvh), 4.45rem);
+    --digit-size: clamp(2.18rem, min(10.6vw, 9.8dvh), 4.75rem);
     --stage-pad-top: calc(0.28rem + var(--safe-top));
     --stage-pad-bottom: calc(1.05rem + var(--safe-bottom));
     --slot-shift-y: -0.2rem;
@@ -416,7 +426,7 @@ input {
 
 @media (max-width: 430px) {
   :root {
-    --digit-size: clamp(2.18rem, 14.2vw, 4.25rem);
+    --digit-size: clamp(2.32rem, 15vw, 4.55rem);
     --slot-shift-y: clamp(-0.68rem, -1.2dvh, -0.12rem);
   }
 
@@ -435,7 +445,7 @@ input {
 
 @media (orientation: landscape) and (max-height: 540px) {
   :root {
-    --digit-size: clamp(1.9rem, min(7.2vw, 10.8dvh), 3.7rem);
+    --digit-size: clamp(2rem, min(7.7vw, 11.2dvh), 3.95rem);
     --stage-pad-bottom: calc(0.72rem + var(--safe-bottom));
     --slot-shift-y: 0rem;
   }
@@ -458,7 +468,7 @@ input {
 /* Radical 3D pass: keep the functional meter in a protected safe area on every viewport. */
 @media (max-width: 760px) {
   :root {
-    --digit-size: clamp(2.65rem, 15vw, 4.65rem);
+    --digit-size: clamp(2.78rem, 15.8vw, 4.95rem);
     --stage-pad-x: clamp(0.45rem, 2.5vw, 0.9rem);
     --stage-pad-bottom: calc(clamp(1.15rem, 3.2dvh, 2.15rem) + var(--safe-bottom));
     --slot-shift-y: clamp(-0.62rem, -1.1dvh, -0.15rem);
@@ -483,7 +493,7 @@ input {
 
 @media (max-height: 620px) and (orientation: landscape) {
   :root {
-    --digit-size: clamp(2.15rem, 8.7dvh, 3.4rem);
+    --digit-size: clamp(2.24rem, 9.3dvh, 3.65rem);
     --stage-pad-top: calc(0.22rem + var(--safe-top));
     --stage-pad-bottom: calc(0.78rem + var(--safe-bottom));
     --slot-shift-y: 0rem;
