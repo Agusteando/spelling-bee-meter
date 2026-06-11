@@ -1,1 +1,1 @@
-Sustituye el asset del ala de mariposa por la nueva versión
+Hace que las mariposas roten según su vuelo realista

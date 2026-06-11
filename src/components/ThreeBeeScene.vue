@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-103000';
+const BUILD_STAMP = '20260611-111500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -152,6 +152,14 @@ function registerDisposable(item) {
 function registerTexture(texture) {
   cleanup.push(() => texture?.dispose?.());
   return texture;
+}
+
+function shortestAngleDelta(from, to) {
+  return Math.atan2(Math.sin(to - from), Math.cos(to - from));
+}
+
+function lerpAngle(from, to, alpha) {
+  return from + shortestAngleDelta(from, to) * alpha;
 }
 
 function disposeTree(object) {
@@ -539,6 +547,7 @@ function createButterflyActor({
     bank: 0,
     pitch: 0,
     yaw: 0,
+    faceYaw: 0,
     flapMemory: 0,
     samplePosition: initialPosition.clone(),
     lastPosition: initialPosition.clone()
@@ -675,19 +684,33 @@ function updateButterflies(loopTime) {
       + (butterflyVelocity.y * cameraUpY)
       + (butterflyVelocity.z * cameraUpZ);
 
-    const targetBank = MathUtils.clamp(-screenVelocityX * 18, -0.42, 0.42);
-    const targetPitch = MathUtils.clamp(screenVelocityY * 10, -0.18, 0.22);
-    const targetYaw = MathUtils.clamp(screenVelocityX * 8, -0.28, 0.28);
+    const horizontalSpeed = Math.hypot(butterflyVelocity.x, butterflyVelocity.z);
+    const travelYaw = horizontalSpeed > 0.00002
+      ? Math.atan2(butterflyVelocity.x, butterflyVelocity.z)
+      : actor.yaw;
+    const cameraYaw = Math.atan2(
+      camera.position.x - actor.samplePosition.x,
+      camera.position.z - actor.samplePosition.z
+    );
+    const cameraVisibilityBlend = 0.28 + burst * 0.08;
+    const naturalSideSlip = Math.sin(loopTime * 0.64 + actor.phase * 9.0) * 0.22;
+    const targetWorldYaw = lerpAngle(travelYaw + naturalSideSlip, cameraYaw, cameraVisibilityBlend);
+    const climbPitch = horizontalSpeed > 0.00002
+      ? Math.atan2(butterflyVelocity.y, horizontalSpeed) * 0.72
+      : 0;
+    const targetBank = MathUtils.clamp(-screenVelocityX * 24, -0.58, 0.58);
+    const targetPitch = MathUtils.clamp(climbPitch + screenVelocityY * 5.5, -0.36, 0.42);
 
-    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.075);
-    actor.pitch = MathUtils.lerp(actor.pitch, targetPitch, 0.065);
-    actor.yaw = MathUtils.lerp(actor.yaw, targetYaw, 0.07);
+    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.085);
+    actor.pitch = MathUtils.lerp(actor.pitch, targetPitch, 0.075);
+    actor.yaw = lerpAngle(actor.yaw, targetWorldYaw, 0.08);
 
     actor.root.position.copy(actor.samplePosition);
-    actor.root.quaternion.copy(camera.quaternion);
-    actor.root.rotateY(actor.yaw);
-    actor.root.rotateX(actor.pitch + Math.sin(loopTime * 0.8 + actor.phase * 4) * 0.018);
-    actor.root.rotateZ(actor.roll + actor.bank + micro * 0.035);
+    actor.root.rotation.set(
+      actor.pitch + Math.sin(loopTime * 0.8 + actor.phase * 4) * 0.025,
+      actor.yaw,
+      actor.roll + actor.bank + micro * 0.05
+    );
 
     const flapRate = actor.flutter * (8.2 + burst * 5.2 + Math.sin(loopTime * 0.55 + actor.phase * 9) * 0.7);
     const flapWave = (Math.sin(loopTime * flapRate + actor.phase * Math.PI * 9) + 1) * 0.5;
