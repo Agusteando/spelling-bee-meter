@@ -1,6 +1,6 @@
-const CACHE_NAME = 'spelling-bee-3d-20260611-091500';
+const CACHE_NAME = 'spelling-bee-3d-20260611-101500';
 const RUNTIME_CACHE = `${CACHE_NAME}-runtime`;
-const CORE_ASSETS = ['/', '/index.html', '/manifest.json'];
+const CORE_ASSETS = ['/', '/index.html', '/manifest.json', '/favicon.ico', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/maskable-512.png', '/apple-touch-icon.png', '/preview-icon.png', '/og-preview.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

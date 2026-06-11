@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-091500';
+const BUILD_STAMP = '20260611-101500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -323,7 +323,7 @@ function createIndexedGeometry(points, indices, uvs = null) {
 
 function createButterflyWingGeometry() {
   const geometry = registerDisposable(new PlaneGeometry(0.42, 0.76, 1, 1));
-  geometry.translate(0.175, 0.08, 0);
+  geometry.translate(-0.175, 0.08, 0);
   return geometry;
 }
 
@@ -389,8 +389,7 @@ function getButterflyWingMaterials(paletteIndex) {
     opacity: 0.42,
     depthWrite: false,
     depthTest: true,
-    alphaTest: 0.03,
-    blending: MultiplyBlending
+    alphaTest: 0.03
   }));
 
   const glowMaterial = registerDisposable(new MeshBasicMaterial({
@@ -456,6 +455,8 @@ function createButterflyActor({
 
   const leftPivot = new Group();
   const rightPivot = new Group();
+  leftPivot.position.set(-0.008, 0.018, 0.01);
+  rightPivot.position.set(0.008, 0.018, -0.01);
   root.add(leftPivot, rightPivot);
 
   const { baseMaterial, overlayMaterial, glowMaterial, sparkleMaterial } = getButterflyWingMaterials(paletteIndex);

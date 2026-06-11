@@ -1,1 +1,1 @@
-Corrige el espejo del ala y recupera variedad cromática translúcida
+Elimina dependencia de MultiplyBlending en alas de mariposa
