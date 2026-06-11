@@ -1,1 +1,1 @@
-Corrige el cierre robusto del loader cuando la escena está lista
+Ralentiza la cámara y corrige regresiones del loader y odómetro

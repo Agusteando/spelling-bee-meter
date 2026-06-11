@@ -52,7 +52,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-065500';
+const BUILD_STAMP = '20260611-071000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -95,12 +95,14 @@ let splatRevealStarted = false;
 let sceneReadyEmitted = false;
 let activeSplatSource = { url: SPLAT_URL };
 let spzModulePromise = null;
+let lastLoadingProgress = -1;
+let lastLoadingLabel = '';
 
 const fixedYaw = 0;
 const fixedPitch = -0.012;
 const CAMERA_HOME = new Vector3(0.0, -0.045, 1.82);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 33.8;
+const SCENE_LOOP_SECONDS = 67.6;
 const CAMERA_NEAR_Z = CAMERA_HOME.z;
 const CAMERA_FAR_Z = 10.48;
 const CAMERA_PATH_CURVE = new CatmullRomCurve3([
