@@ -52,7 +52,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-064000';
+const BUILD_STAMP = '20260611-065500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -91,6 +91,7 @@ let fov = 58;
 let lastActivity = 0;
 let splatRevealStart = 0;
 let splatRevealComplete = false;
+let splatRevealStarted = false;
 let sceneReadyEmitted = false;
 let activeSplatSource = { url: SPLAT_URL };
 let spzModulePromise = null;
@@ -843,8 +844,27 @@ function handleUnhandledSplatRejection(event) {
   setSplatLoadError(event.reason);
 }
 
+function beginSplatReveal() {
+  if (splatRevealStarted || !splatMesh) return;
+  splatRevealStarted = true;
+  splatRevealStart = clock.elapsedTime;
+  splatRevealComplete = false;
+  sceneReadyEmitted = false;
+
+  if (overlayRoot) overlayRoot.visible = false;
+  if (particleSystem) particleSystem.visible = false;
+  splatMesh.opacity = 0;
+  splatLoading.value = true;
+  emitLoadingState(0.93, 'Shaping the reveal…');
+}
+
 function updateSplatReveal(elapsed) {
-  if (!splatRoot || !splatMesh || !splatMesh.isInitialized || splatRevealComplete) return;
+  if (!splatRoot || !splatMesh || splatRevealComplete) return;
+
+  if (!splatRevealStarted) {
+    if (!splatMesh.isInitialized) return;
+    beginSplatReveal();
+  }
 
   const raw = MathUtils.clamp((elapsed - splatRevealStart) / SPLAT_REVEAL_SECONDS, 0, 1);
   emitLoadingState(0.93 + (raw * 0.07), raw < 0.96 ? 'Blooming the scene…' : 'Almost ready…');
@@ -878,6 +898,9 @@ async function createSplatScene() {
   scene.add(splatRoot);
 
   try {
+    splatRevealStarted = false;
+    splatRevealComplete = false;
+    sceneReadyEmitted = false;
     activeSplatSource = await resolveSplatSource();
     if (disposed) return;
 
@@ -891,14 +914,7 @@ async function createSplatScene() {
       raycastable: false,
       onLoad: () => {
         if (disposed) return;
-        splatRevealStart = clock.elapsedTime;
-        splatRevealComplete = false;
-        sceneReadyEmitted = false;
-        if (overlayRoot) overlayRoot.visible = false;
-        if (particleSystem) particleSystem.visible = false;
-        if (splatMesh) splatMesh.opacity = 0;
-        splatLoading.value = true;
-        emitLoadingState(0.93, 'Shaping the reveal…');
+        beginSplatReveal();
       },
       onError: setSplatLoadError,
       onProgress: () => null
@@ -944,7 +960,7 @@ function updateSplatVisibility() {
   if (splatRoot) splatRoot.visible = props.splatEnabled;
   if (overlayRoot) overlayRoot.visible = visibleContent;
   if (particleSystem) particleSystem.visible = visibleContent;
-  splatLoading.value = Boolean(props.splatEnabled && !splatError.value && (!splatMesh || !splatMesh.isInitialized || !sceneReadyEmitted));
+  splatLoading.value = Boolean(props.splatEnabled && !splatError.value && (!splatMesh || !sceneReadyEmitted));
 }
 
 function updateResponsive() {

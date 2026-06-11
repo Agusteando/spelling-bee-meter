@@ -139,7 +139,7 @@ import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-064000';
+const BUILD_STAMP = '20260611-065500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -153,7 +153,7 @@ const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
 const splatEnabled = ref(true);
 const sceneReady = ref(false);
-const loaderProgress = ref(4);
+const loaderProgress = ref(0.04);
 const loaderLabel = ref('Warming the hive…');
 const loaderError = ref('');
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
@@ -229,14 +229,25 @@ function saveState() {
 }
 
 function handleSceneLoading(payload = {}) {
-  if (typeof payload.progress === 'number' && Number.isFinite(payload.progress)) {
-    loaderProgress.value = Math.max(loaderProgress.value, Math.min(0.99, payload.progress));
-  }
+  const progress = typeof payload.progress === 'number' && Number.isFinite(payload.progress)
+    ? Math.max(0, Math.min(1, payload.progress))
+    : null;
+
   if (payload.label) loaderLabel.value = payload.label;
   if (payload.error) loaderError.value = payload.error;
+
+  if (!payload.error && progress === 1 && payload.label === 'Scene ready') {
+    void handleSceneReady();
+    return;
+  }
+
+  if (progress !== null) {
+    loaderProgress.value = Math.max(loaderProgress.value, Math.min(0.99, progress));
+  }
 }
 
 async function handleSceneReady() {
+  if (sceneReady.value) return;
   loaderProgress.value = 1;
   loaderLabel.value = 'Scene ready';
   loaderError.value = '';

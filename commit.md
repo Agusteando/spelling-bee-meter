@@ -1,1 +1,1 @@
-Suaviza la transición de cámara antes de la retirada
+Corrige el cierre robusto del loader cuando la escena está lista
