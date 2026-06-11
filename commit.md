@@ -1,1 +1,1 @@
-Ralentiza la cámara y corrige regresiones del loader y odómetro
+Ralentiza la cámara y mejora mariposas con vuelo orgánico

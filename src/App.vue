@@ -139,7 +139,7 @@ import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-071000';
+const BUILD_STAMP = '20260611-073000';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;

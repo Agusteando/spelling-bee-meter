@@ -10,6 +10,7 @@ import {
   AdditiveBlending,
   AmbientLight,
   CanvasTexture,
+  CapsuleGeometry,
   BufferGeometry,
   CatmullRomCurve3,
   ClampToEdgeWrapping,
@@ -29,6 +30,7 @@ import {
   ShaderMaterial,
   Sprite,
   SpriteMaterial,
+  SphereGeometry,
   SRGBColorSpace,
   TextureLoader,
   Vector3,
@@ -52,7 +54,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-071000';
+const BUILD_STAMP = '20260611-073000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -102,7 +104,7 @@ const fixedYaw = 0;
 const fixedPitch = -0.012;
 const CAMERA_HOME = new Vector3(0.0, -0.045, 1.82);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 67.6;
+const SCENE_LOOP_SECONDS = 101.4;
 const CAMERA_NEAR_Z = CAMERA_HOME.z;
 const CAMERA_FAR_Z = 10.48;
 const CAMERA_PATH_CURVE = new CatmullRomCurve3([
@@ -135,6 +137,7 @@ const cameraPathTargetPosition = new Vector3();
 const cameraLookTarget = new Vector3();
 const cameraDirection = new Vector3();
 const beeVector = new Vector3();
+const butterflyVelocity = new Vector3();
 let cameraPathYaw = fixedYaw;
 let cameraPathPitch = fixedPitch;
 let cameraPathFovOffset = 0;
@@ -299,8 +302,12 @@ const BUTTERFLY_PALETTE = [
 
 const butterflyWingMaterials = new Map();
 let butterflyWingGeometry;
-let butterflyBodyGeometry;
-let butterflyBodyMaterial;
+let butterflyAbdomenGeometry;
+let butterflyThoraxGeometry;
+let butterflyHeadGeometry;
+let butterflyAbdomenMaterial;
+let butterflyThoraxMaterial;
+let butterflyHeadMaterial;
 
 function createIndexedGeometry(points, indices, uvs = null) {
   const geometry = registerDisposable(new BufferGeometry());
@@ -329,23 +336,30 @@ function createButterflyWingGeometry() {
   ]);
 }
 
-function createButterflyBodyGeometry() {
-  return createIndexedGeometry([
-    -0.012, 0.16, 0,
-     0.012, 0.16, 0,
-    -0.016, -0.15, 0,
-     0.016, -0.15, 0
-  ], [0, 2, 1, 1, 2, 3]);
-}
-
 function ensureButterflyGeometry() {
   butterflyWingGeometry ??= createButterflyWingGeometry();
-  butterflyBodyGeometry ??= createButterflyBodyGeometry();
-  butterflyBodyMaterial ??= registerDisposable(new MeshBasicMaterial({
-    color: '#4a371f',
-    side: DoubleSide,
+  butterflyAbdomenGeometry ??= registerDisposable(new CapsuleGeometry(0.017, 0.165, 5, 8));
+  butterflyThoraxGeometry ??= registerDisposable(new SphereGeometry(0.029, 10, 8));
+  butterflyHeadGeometry ??= registerDisposable(new SphereGeometry(0.021, 10, 8));
+
+  butterflyAbdomenMaterial ??= registerDisposable(new MeshBasicMaterial({
+    color: '#5a3b1f',
     transparent: true,
     opacity: 0.98,
+    depthWrite: false,
+    depthTest: true
+  }));
+  butterflyThoraxMaterial ??= registerDisposable(new MeshBasicMaterial({
+    color: '#6b4828',
+    transparent: true,
+    opacity: 0.99,
+    depthWrite: false,
+    depthTest: true
+  }));
+  butterflyHeadMaterial ??= registerDisposable(new MeshBasicMaterial({
+    color: '#3d2b19',
+    transparent: true,
+    opacity: 0.99,
     depthWrite: false,
     depthTest: true
   }));
@@ -353,52 +367,79 @@ function ensureButterflyGeometry() {
 
 function createButterflyWingTexture(palette) {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 160;
+  canvas.height = 160;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 128, 128);
+  ctx.clearRect(0, 0, 160, 160);
 
-  const topGradient = ctx.createLinearGradient(8, 10, 120, 70);
-  topGradient.addColorStop(0, palette.accent);
-  topGradient.addColorStop(0.34, palette.top);
-  topGradient.addColorStop(1, palette.bottom);
+  const upperGradient = ctx.createRadialGradient(36, 48, 4, 96, 54, 112);
+  upperGradient.addColorStop(0, palette.accent);
+  upperGradient.addColorStop(0.28, palette.top);
+  upperGradient.addColorStop(0.72, palette.bottom);
+  upperGradient.addColorStop(1, 'rgba(255,255,255,0.08)');
 
-  ctx.fillStyle = topGradient;
+  ctx.fillStyle = upperGradient;
   ctx.beginPath();
-  ctx.moveTo(2, 62);
-  ctx.bezierCurveTo(18, 18, 74, 0, 124, 35);
-  ctx.bezierCurveTo(116, 75, 56, 80, 2, 65);
+  ctx.moveTo(2, 78);
+  ctx.bezierCurveTo(16, 26, 74, 2, 148, 36);
+  ctx.bezierCurveTo(152, 72, 108, 96, 58, 88);
+  ctx.bezierCurveTo(34, 84, 14, 82, 2, 78);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = palette.bottom;
+  const lowerGradient = ctx.createLinearGradient(18, 88, 138, 150);
+  lowerGradient.addColorStop(0, palette.accent);
+  lowerGradient.addColorStop(0.38, palette.bottom);
+  lowerGradient.addColorStop(1, palette.top);
+
+  ctx.fillStyle = lowerGradient;
   ctx.beginPath();
-  ctx.moveTo(4, 69);
-  ctx.bezierCurveTo(40, 72, 98, 82, 112, 125);
-  ctx.bezierCurveTo(62, 126, 22, 104, 2, 72);
+  ctx.moveTo(4, 86);
+  ctx.bezierCurveTo(42, 88, 126, 96, 142, 150);
+  ctx.bezierCurveTo(80, 154, 24, 128, 2, 92);
   ctx.closePath();
   ctx.fill();
 
-  ctx.globalAlpha = 0.52;
-  ctx.strokeStyle = palette.accent;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(18, 60);
-  ctx.bezierCurveTo(42, 38, 72, 32, 104, 42);
-  ctx.stroke();
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(24, 76);
-  ctx.bezierCurveTo(50, 86, 76, 96, 96, 116);
-  ctx.stroke();
+  ctx.globalAlpha = 0.36;
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.8;
+  for (let i = 0; i < 5; i += 1) {
+    const y = 69 + i * 6;
+    ctx.beginPath();
+    ctx.moveTo(10, 78);
+    ctx.bezierCurveTo(42 + i * 7, y - 38, 78 + i * 8, y - 34, 128, y - 18);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 0.32;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i += 1) {
+    ctx.beginPath();
+    ctx.moveTo(16, 90);
+    ctx.bezierCurveTo(42 + i * 8, 96 + i * 5, 76 + i * 10, 118 + i * 5, 122, 146 - i * 4);
+    ctx.stroke();
+  }
+
   ctx.globalAlpha = 0.42;
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
-  ctx.ellipse(78, 40, 10, 6, -0.35, 0, Math.PI * 2);
+  ctx.ellipse(92, 42, 13, 7, -0.35, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.ellipse(64, 96, 7, 4, 0.45, 0, Math.PI * 2);
+  ctx.ellipse(68, 111, 8, 5, 0.42, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.globalAlpha = 0.52;
+  ctx.strokeStyle = 'rgba(75,46,21,0.55)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(2, 78);
+  ctx.bezierCurveTo(16, 26, 74, 2, 148, 36);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(4, 86);
+  ctx.bezierCurveTo(42, 88, 126, 96, 142, 150);
+  ctx.stroke();
 
   const texture = registerTexture(new CanvasTexture(canvas));
   texture.colorSpace = SRGBColorSpace;
@@ -433,10 +474,24 @@ function configureTexture(texture, repeatX = 1, repeatY = 1) {
   texture.needsUpdate = true;
 }
 
-function createButterflyActor({ position, scale = 0.1, paletteIndex = 0, phase = 0, bob = 0.012, sway = 0.026, depth = 0.018, flapSpeed = 11.5, roll = 0 }) {
+function createButterflyActor({
+  route,
+  scale = 0.1,
+  paletteIndex = 0,
+  phase = 0,
+  loopDuration = 34,
+  flutter = 1,
+  drift = 0.018,
+  lift = 0.018,
+  roll = 0
+}) {
   ensureButterflyGeometry();
+
+  const routePoints = route.map(([x, y, z]) => new Vector3(x, y, z));
+  const curve = new CatmullRomCurve3(routePoints, true, 'catmullrom', 0.36);
   const root = new Group();
-  root.position.set(position[0], position[1], position[2]);
+  const initialPosition = curve.getPointAt(phase % 1, new Vector3());
+  root.position.copy(initialPosition);
   root.renderOrder = 42;
   overlayRoot.add(root);
 
@@ -448,31 +503,53 @@ function createButterflyActor({ position, scale = 0.1, paletteIndex = 0, phase =
   const leftWing = new Mesh(butterflyWingGeometry, material);
   const rightWing = new Mesh(butterflyWingGeometry, material);
   leftWing.scale.x = -1;
-  leftWing.position.z = 0.001;
-  rightWing.position.z = -0.001;
+  leftWing.position.z = 0.002;
+  rightWing.position.z = -0.002;
   leftWing.renderOrder = 42;
   rightWing.renderOrder = 42;
   leftPivot.add(leftWing);
   rightPivot.add(rightWing);
 
-  const body = new Mesh(butterflyBodyGeometry, butterflyBodyMaterial);
-  body.position.z = 0.003;
-  body.renderOrder = 43;
-  root.add(body);
+  const bodyGroup = new Group();
+  const abdomen = new Mesh(butterflyAbdomenGeometry, butterflyAbdomenMaterial);
+  const thorax = new Mesh(butterflyThoraxGeometry, butterflyThoraxMaterial);
+  const head = new Mesh(butterflyHeadGeometry, butterflyHeadMaterial);
+
+  abdomen.position.set(0, -0.05, 0.014);
+  abdomen.scale.set(0.82, 1.08, 0.58);
+  thorax.position.set(0, 0.045, 0.018);
+  thorax.scale.set(0.9, 1.05, 0.68);
+  head.position.set(0, 0.107, 0.021);
+  head.scale.set(0.88, 1.0, 0.7);
+
+  abdomen.renderOrder = 44;
+  thorax.renderOrder = 45;
+  head.renderOrder = 45;
+  bodyGroup.add(abdomen, thorax, head);
+  root.add(bodyGroup);
   root.scale.setScalar(scale);
 
   butterflyActors.push({
     root,
     leftPivot,
     rightPivot,
-    body,
-    basePosition: root.position.clone(),
-    bob,
-    sway,
-    depth,
-    flapSpeed,
+    bodyGroup,
+    abdomen,
+    thorax,
+    head,
+    curve,
+    phase,
+    loopDuration,
+    flutter,
+    drift,
+    lift,
     roll,
-    phase
+    bank: 0,
+    pitch: 0,
+    yaw: 0,
+    flapMemory: 0,
+    samplePosition: initialPosition.clone(),
+    lastPosition: initialPosition.clone()
   });
 }
 
@@ -528,24 +605,32 @@ function createFlyingActors() {
   beeRightTexture = loadBeeTexture(beeRightUrl);
   beeLeftTexture = loadBeeTexture(beeLeftUrl);
 
-  const butterflyPlacements = [
-    [-1.78, -0.58, 2.18], [-1.22, -0.56, 2.82], [-0.64, -0.57, 3.54],
-    [-0.08, -0.54, 4.24], [0.48, -0.53, 4.98], [1.02, -0.5, 5.72],
-    [0.78, -0.49, 6.44], [0.12, -0.47, 7.18], [-0.54, -0.45, 7.82],
-    [0.32, -0.4, 8.42], [0.94, -0.37, 8.92], [-0.18, -0.42, 5.96]
+  const butterflyRoutes = [
+    [[-1.7, -0.58, 2.15], [-1.2, -0.42, 2.9], [-0.58, -0.54, 3.65], [-0.96, -0.62, 2.55]],
+    [[-1.1, -0.5, 2.82], [-0.35, -0.3, 4.05], [0.18, -0.46, 5.25], [-0.7, -0.57, 3.2]],
+    [[-0.58, -0.54, 3.48], [0.2, -0.38, 4.36], [0.78, -0.18, 5.86], [-0.14, -0.5, 4.4]],
+    [[0.08, -0.5, 4.2], [0.78, -0.28, 5.3], [1.08, 0.02, 6.75], [0.26, -0.44, 5.2]],
+    [[0.58, -0.48, 5.02], [1.2, -0.12, 6.38], [0.62, 0.16, 7.55], [0.18, -0.36, 5.96]],
+    [[1.02, -0.42, 5.72], [0.5, -0.08, 6.86], [-0.12, 0.12, 7.88], [0.7, -0.36, 6.44]],
+    [[0.7, -0.42, 6.38], [-0.04, -0.06, 7.15], [-0.7, 0.12, 8.18], [0.16, -0.38, 7.24]],
+    [[0.1, -0.42, 7.12], [-0.58, -0.18, 7.78], [-0.18, 0.28, 8.9], [0.54, -0.22, 7.92]],
+    [[-0.54, -0.43, 7.76], [-1.0, -0.08, 8.4], [-0.28, 0.28, 9.22], [0.18, -0.34, 8.22]],
+    [[0.32, -0.36, 8.32], [0.9, -0.02, 8.94], [0.34, 0.34, 9.72], [-0.24, -0.2, 8.7]],
+    [[0.92, -0.34, 8.92], [0.36, 0.16, 9.46], [-0.42, 0.38, 9.96], [0.12, -0.18, 9.08]],
+    [[-0.18, -0.42, 5.96], [-0.76, -0.18, 6.68], [-0.1, 0.05, 7.54], [0.46, -0.34, 6.72]]
   ];
 
-  butterflyPlacements.forEach((position, index) => {
+  butterflyRoutes.forEach((route, index) => {
     createButterflyActor({
-      position,
-      scale: 0.075 + (index % 3) * 0.007,
+      route,
+      scale: 0.07 + (index % 3) * 0.006,
       paletteIndex: index % BUTTERFLY_PALETTE.length,
-      phase: index * 0.58,
-      bob: 0.007 + (index % 3) * 0.0015,
-      sway: 0.012 + (index % 4) * 0.002,
-      depth: 0.008 + (index % 3) * 0.002,
-      flapSpeed: 8.6 + (index % 5) * 0.55,
-      roll: (index % 2 === 0 ? 1 : -1) * 0.035
+      phase: (index * 0.083) % 1,
+      loopDuration: 24 + (index % 5) * 4.5,
+      flutter: 0.88 + (index % 4) * 0.12,
+      drift: 0.012 + (index % 4) * 0.004,
+      lift: 0.012 + (index % 3) * 0.005,
+      roll: (index % 2 === 0 ? 1 : -1) * 0.026
     });
   });
 
@@ -570,22 +655,68 @@ function createFlyingActors() {
 function updateButterflies(loopTime) {
   if (!butterflyActors.length || !camera) return;
 
-  butterflyActors.forEach((actor, index) => {
-    const t = loopTime * (0.18 + index * 0.002) + actor.phase;
-    actor.root.quaternion.copy(camera.quaternion);
-    actor.root.rotateZ(actor.roll + Math.sin(t * 0.42) * 0.035);
-    actor.root.position.set(
-      actor.basePosition.x + Math.sin(t * 0.78) * actor.sway,
-      actor.basePosition.y + Math.sin(t * 1.35) * actor.bob,
-      actor.basePosition.z + Math.cos(t * 0.62) * actor.depth
-    );
+  const cameraRightX = camera.matrixWorld.elements[0] ?? 1;
+  const cameraRightY = camera.matrixWorld.elements[1] ?? 0;
+  const cameraRightZ = camera.matrixWorld.elements[2] ?? 0;
+  const cameraUpX = camera.matrixWorld.elements[4] ?? 0;
+  const cameraUpY = camera.matrixWorld.elements[5] ?? 1;
+  const cameraUpZ = camera.matrixWorld.elements[6] ?? 0;
 
-    const flap = 0.28 + ((Math.sin(t * actor.flapSpeed) + 1) * 0.5) * 0.62;
+  butterflyActors.forEach((actor, index) => {
+    const cycle = (((loopTime / actor.loopDuration) + actor.phase) % 1 + 1) % 1;
+    actor.curve.getPointAt(cycle, actor.samplePosition);
+
+    const organic = Math.sin(loopTime * (0.72 + index * 0.015) + actor.phase * Math.PI * 6);
+    const burst = MathUtils.smoothstep((organic + 1) * 0.5, 0.34, 0.92);
+    const micro = Math.sin(loopTime * (1.9 + index * 0.045) + actor.phase * Math.PI * 11);
+
+    actor.samplePosition.x += Math.sin(loopTime * 0.86 + actor.phase * 8.0) * actor.drift;
+    actor.samplePosition.y += Math.sin(loopTime * 1.18 + actor.phase * 6.0) * actor.lift + burst * actor.lift * 0.55;
+    actor.samplePosition.z += Math.cos(loopTime * 0.68 + actor.phase * 7.4) * actor.drift * 1.45;
+
+    butterflyVelocity.subVectors(actor.samplePosition, actor.lastPosition);
+
+    const screenVelocityX = (butterflyVelocity.x * cameraRightX)
+      + (butterflyVelocity.y * cameraRightY)
+      + (butterflyVelocity.z * cameraRightZ);
+    const screenVelocityY = (butterflyVelocity.x * cameraUpX)
+      + (butterflyVelocity.y * cameraUpY)
+      + (butterflyVelocity.z * cameraUpZ);
+
+    const targetBank = MathUtils.clamp(-screenVelocityX * 18, -0.42, 0.42);
+    const targetPitch = MathUtils.clamp(screenVelocityY * 10, -0.18, 0.22);
+    const targetYaw = MathUtils.clamp(screenVelocityX * 8, -0.28, 0.28);
+
+    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.075);
+    actor.pitch = MathUtils.lerp(actor.pitch, targetPitch, 0.065);
+    actor.yaw = MathUtils.lerp(actor.yaw, targetYaw, 0.07);
+
+    actor.root.position.copy(actor.samplePosition);
+    actor.root.quaternion.copy(camera.quaternion);
+    actor.root.rotateY(actor.yaw);
+    actor.root.rotateX(actor.pitch + Math.sin(loopTime * 0.8 + actor.phase * 4) * 0.018);
+    actor.root.rotateZ(actor.roll + actor.bank + micro * 0.035);
+
+    const flapRate = actor.flutter * (8.2 + burst * 5.2 + Math.sin(loopTime * 0.55 + actor.phase * 9) * 0.7);
+    const flapWave = (Math.sin(loopTime * flapRate + actor.phase * Math.PI * 9) + 1) * 0.5;
+    const flap = 0.24 + Math.pow(flapWave, 1.45) * (0.52 + burst * 0.26);
+    const wingTwist = Math.sin(loopTime * (flapRate * 0.47) + actor.phase * 5.0) * (0.07 + burst * 0.045);
+
     actor.leftPivot.rotation.y = flap;
     actor.rightPivot.rotation.y = -flap;
-    actor.leftPivot.rotation.z = 0.08;
-    actor.rightPivot.rotation.z = -0.08;
-    actor.body.rotation.z = Math.sin(t * 0.78) * 0.05;
+    actor.leftPivot.rotation.x = wingTwist;
+    actor.rightPivot.rotation.x = -wingTwist;
+    actor.leftPivot.rotation.z = 0.095 + burst * 0.035;
+    actor.rightPivot.rotation.z = -0.095 - burst * 0.035;
+
+    actor.bodyGroup.rotation.z = Math.sin(loopTime * 1.25 + actor.phase * 8) * 0.045 + actor.bank * 0.16;
+    actor.bodyGroup.rotation.x = -0.045 + actor.pitch * 0.28;
+    const bodyPulse = 1 + Math.sin(loopTime * flapRate * 0.5 + actor.phase * Math.PI) * 0.035;
+    actor.abdomen.scale.set(0.82 * (1 - burst * 0.04), 1.08 * bodyPulse, 0.58);
+    actor.thorax.scale.set(0.9 * (1 + burst * 0.035), 1.05, 0.68);
+    actor.head.position.y = 0.107 + Math.sin(loopTime * 1.6 + actor.phase * 6) * 0.0025;
+
+    actor.lastPosition.copy(actor.samplePosition);
   });
 }
 
