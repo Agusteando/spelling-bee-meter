@@ -1,1 +1,1 @@
-Agrega favicon metadata preview y corrige importación de blending
+Corrige el espejo del ala y recupera variedad cromática translúcida
