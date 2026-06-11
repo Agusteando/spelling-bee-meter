@@ -1,1 +1,1 @@
-Actualiza el ala de mariposa y reduce ligeramente su escala
+Corrige el espejo del ala y recupera variedad cromática translúcida

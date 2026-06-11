@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-085500';
+const BUILD_STAMP = '20260611-091500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -372,13 +372,13 @@ function getButterflyWingMaterials(paletteIndex) {
 
   const baseMaterial = registerDisposable(new MeshBasicMaterial({
     map: texture,
-    color: palette.bottom,
+    color: '#ffffff',
     side: DoubleSide,
     transparent: true,
-    opacity: 0.96,
+    opacity: 0.84,
     depthWrite: false,
     depthTest: true,
-    alphaTest: 0.04
+    alphaTest: 0.03
   }));
 
   const overlayMaterial = registerDisposable(new MeshBasicMaterial({
@@ -386,10 +386,22 @@ function getButterflyWingMaterials(paletteIndex) {
     color: palette.top,
     side: DoubleSide,
     transparent: true,
-    opacity: 0.24,
+    opacity: 0.42,
     depthWrite: false,
     depthTest: true,
-    alphaTest: 0.04,
+    alphaTest: 0.03,
+    blending: MultiplyBlending
+  }));
+
+  const glowMaterial = registerDisposable(new MeshBasicMaterial({
+    map: texture,
+    color: palette.bottom,
+    side: DoubleSide,
+    transparent: true,
+    opacity: 0.18,
+    depthWrite: false,
+    depthTest: true,
+    alphaTest: 0.03,
     blending: AdditiveBlending
   }));
 
@@ -398,14 +410,14 @@ function getButterflyWingMaterials(paletteIndex) {
     color: palette.accent,
     side: DoubleSide,
     transparent: true,
-    opacity: 0.12,
+    opacity: 0.1,
     depthWrite: false,
     depthTest: true,
-    alphaTest: 0.08,
+    alphaTest: 0.06,
     blending: AdditiveBlending
   }));
 
-  const materials = { baseMaterial, overlayMaterial, sparkleMaterial };
+  const materials = { baseMaterial, overlayMaterial, glowMaterial, sparkleMaterial };
   butterflyWingMaterialSets.set(paletteIndex, materials);
   return materials;
 }
@@ -446,39 +458,48 @@ function createButterflyActor({
   const rightPivot = new Group();
   root.add(leftPivot, rightPivot);
 
-  const { baseMaterial, overlayMaterial, sparkleMaterial } = getButterflyWingMaterials(paletteIndex);
+  const { baseMaterial, overlayMaterial, glowMaterial, sparkleMaterial } = getButterflyWingMaterials(paletteIndex);
   const leftWing = new Mesh(butterflyWingGeometry, baseMaterial);
   const rightWing = new Mesh(butterflyWingGeometry, baseMaterial);
   const leftWingOverlay = new Mesh(butterflyWingGeometry, overlayMaterial);
   const rightWingOverlay = new Mesh(butterflyWingGeometry, overlayMaterial);
+  const leftWingGlow = new Mesh(butterflyWingGeometry, glowMaterial);
+  const rightWingGlow = new Mesh(butterflyWingGeometry, glowMaterial);
   const leftWingSparkle = new Mesh(butterflyWingGeometry, sparkleMaterial);
   const rightWingSparkle = new Mesh(butterflyWingGeometry, sparkleMaterial);
 
-  leftWing.scale.x = -1;
-  leftWingOverlay.scale.x = -1;
-  leftWingSparkle.scale.x = -1;
+  rightWing.scale.x = -1;
+  rightWingOverlay.scale.x = -1;
+  rightWingGlow.scale.x = -1;
+  rightWingSparkle.scale.x = -1;
 
   leftWing.position.z = 0.001;
   rightWing.position.z = -0.001;
-  leftWingOverlay.position.z = 0.0024;
-  rightWingOverlay.position.z = -0.0024;
+  leftWingOverlay.position.z = 0.0022;
+  rightWingOverlay.position.z = -0.0022;
+  leftWingGlow.position.z = 0.0028;
+  rightWingGlow.position.z = -0.0028;
   leftWingSparkle.position.z = 0.0034;
   rightWingSparkle.position.z = -0.0034;
 
-  leftWingOverlay.scale.multiplyScalar(1.015);
-  rightWingOverlay.scale.multiplyScalar(1.015);
-  leftWingSparkle.scale.multiplyScalar(1.03);
-  rightWingSparkle.scale.multiplyScalar(1.03);
+  leftWingOverlay.scale.multiplyScalar(1.012);
+  rightWingOverlay.scale.multiplyScalar(1.012);
+  leftWingGlow.scale.multiplyScalar(1.02);
+  rightWingGlow.scale.multiplyScalar(1.02);
+  leftWingSparkle.scale.multiplyScalar(1.028);
+  rightWingSparkle.scale.multiplyScalar(1.028);
 
   leftWing.renderOrder = 42;
   rightWing.renderOrder = 42;
   leftWingOverlay.renderOrder = 43;
   rightWingOverlay.renderOrder = 43;
-  leftWingSparkle.renderOrder = 44;
-  rightWingSparkle.renderOrder = 44;
+  leftWingGlow.renderOrder = 44;
+  rightWingGlow.renderOrder = 44;
+  leftWingSparkle.renderOrder = 45;
+  rightWingSparkle.renderOrder = 45;
 
-  leftPivot.add(leftWing, leftWingOverlay, leftWingSparkle);
-  rightPivot.add(rightWing, rightWingOverlay, rightWingSparkle);
+  leftPivot.add(leftWing, leftWingOverlay, leftWingGlow, leftWingSparkle);
+  rightPivot.add(rightWing, rightWingOverlay, rightWingGlow, rightWingSparkle);
 
   const bodyGroup = new Group();
   const abdomen = new Mesh(butterflyAbdomenGeometry, butterflyAbdomenMaterial);
