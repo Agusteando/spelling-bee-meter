@@ -1,1 +1,1 @@
-Ralentiza la cámara y mejora mariposas con vuelo orgánico
+Añade soundboard procedural épico para loader escena y sorteo

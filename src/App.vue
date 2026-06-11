@@ -8,6 +8,16 @@
         @scene-loading="handleSceneLoading"
       />
 
+      <button
+        class="sound-toggle"
+        :class="{ active: soundEnabled }"
+        type="button"
+        :aria-pressed="soundEnabled"
+        @click="toggleSound"
+      >
+        {{ soundToggleLabel }}
+      </button>
+
       <transition name="loader-fade">
         <div v-if="!sceneReady" class="scene-loader" aria-live="polite" aria-label="Loading Gaussian splat scene">
           <div class="scene-loader-card" :class="{ 'is-error': Boolean(loaderError) }">
@@ -138,8 +148,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
+import { createSoundboard } from './audio/soundboard.js';
 
-const BUILD_STAMP = '20260611-073000';
+const BUILD_STAMP = '20260611-081500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -153,10 +164,14 @@ const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
 const splatEnabled = ref(true);
 const sceneReady = ref(false);
+const soundEnabled = ref(false);
+const soundSupported = ref(true);
+const soundUnlocked = ref(false);
 const loaderProgress = ref(0.04);
 const loaderLabel = ref('Warming the hive…');
 const loaderError = ref('');
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
+let soundboard = null;
 
 const qs = new URLSearchParams(window.location.search);
 const startMax = Math.max(1, parseInt(qs.get('max') || DEF_MAX, 10));
@@ -203,6 +218,10 @@ const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
 
 const loaderPercent = computed(() => Math.max(0, Math.min(100, Math.round(loaderProgress.value * 100))));
+const soundToggleLabel = computed(() => {
+  if (!soundSupported.value) return 'Sound unavailable';
+  return soundEnabled.value ? 'Sound on' : 'Enable sound';
+});
 
 const displayedValue = ref(state.value.drawn.at(-1) ?? 0);
 const meterLabel = computed(() => (rolling.value ? 'Drawing number' : `Current number ${pad(displayedValue.value)}`));
@@ -228,6 +247,18 @@ function saveState() {
   hasSavedState.value = true;
 }
 
+function syncSoundState(state = soundboard?.getState?.()) {
+  soundSupported.value = state?.supported !== false;
+  soundEnabled.value = Boolean(state?.enabled && !state?.muted);
+  soundUnlocked.value = Boolean(state?.unlocked);
+}
+
+async function toggleSound() {
+  soundboard ??= createSoundboard({ onState: syncSoundState });
+  await soundboard.toggle();
+  syncSoundState();
+}
+
 function handleSceneLoading(payload = {}) {
   const progress = typeof payload.progress === 'number' && Number.isFinite(payload.progress)
     ? Math.max(0, Math.min(1, payload.progress))
@@ -243,6 +274,9 @@ function handleSceneLoading(payload = {}) {
 
   if (progress !== null) {
     loaderProgress.value = Math.max(loaderProgress.value, Math.min(0.99, progress));
+    soundboard?.loaderProgress(progress, payload.label, Boolean(payload.error));
+  } else if (payload.error) {
+    soundboard?.loaderProgress(1, payload.label, true);
   }
 }
 
@@ -252,10 +286,13 @@ async function handleSceneReady() {
   loaderLabel.value = 'Scene ready';
   loaderError.value = '';
   sceneReady.value = true;
+  soundboard?.sceneReady();
   await setupReels(displayedValue.value);
 }
 
-function notifySceneActivity() {
+function notifySceneActivity({ tap = true } = {}) {
+  void soundboard?.resumeIfEnabled?.();
+  if (tap) soundboard?.uiTap();
   window.dispatchEvent(new CustomEvent('bee-meter-activity'));
 }
 
@@ -404,6 +441,8 @@ async function spinTo(value) {
   const targetRows = targetDigits.map((digit, index) => targetRowForDigit(fromRows[index] ?? 0, digit, index));
   const durationMs = Math.max(900, spinInput.value * 1000);
 
+  soundboard?.spinStart({ durationMs, digits: state.value.digits });
+
   reelPositions = [...fromRows];
   renderReels();
 
@@ -421,13 +460,14 @@ async function spinTo(value) {
       setReelsToValue(value);
     }
 
+    soundboard?.spinComplete(value);
     rolling.value = false;
   }
 }
 
 async function draw() {
   if (!sceneReady.value || rolling.value) return;
-  notifySceneActivity();
+  notifySceneActivity({ tap: false });
 
   let nextState = state.value;
   let nextIndex = nextState.idx + 1;
@@ -457,11 +497,13 @@ async function resetList() {
   saveState();
   displayedValue.value = 0;
   await setupReels(0);
+  soundboard?.reset();
 }
 
 function clearAll() {
   if (rolling.value) return;
   notifySceneActivity();
+  soundboard?.reset();
   localStorage.removeItem(STATE_KEY);
   window.location.reload();
 }
@@ -469,6 +511,7 @@ function clearAll() {
 function applyMax() {
   if (rolling.value) return;
   notifySceneActivity();
+  soundboard?.confirm();
   const nextMax = Math.max(1, parseInt(maxInput.value, 10) || DEF_MAX);
   window.location.search = `?max=${nextMax}`;
 }
@@ -476,6 +519,7 @@ function applyMax() {
 function applyDuration() {
   if (rolling.value) return;
   notifySceneActivity();
+  soundboard?.confirm();
   spinInput.value = Math.max(1, parseFloat(spinInput.value) || DEF_SEC);
   localStorage.setItem(DUR_KEY, spinInput.value);
   setSpinTimeCss();
@@ -527,6 +571,9 @@ async function refreshServiceWorker() {
 }
 
 onMounted(async () => {
+  soundboard = createSoundboard({ onState: syncSoundState });
+  syncSoundState();
+  soundboard.loaderProgress(loaderProgress.value, loaderLabel.value, Boolean(loaderError.value));
   setSpinTimeCss();
   await setupReels(displayedValue.value);
   window.addEventListener('keydown', handleKeydown);
@@ -541,5 +588,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleMeterResize);
   window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+  soundboard?.dispose();
 });
 </script>
