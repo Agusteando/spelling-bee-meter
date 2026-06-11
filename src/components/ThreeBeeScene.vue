@@ -1,7 +1,6 @@
 <template>
   <div ref="mount" class="bee-world" :class="{ 'is-dragging': dragging }" aria-label="Gaussian splat spelling bee scene">
     <div v-if="splatError" class="splat-loading splat-error">{{ splatError }}</div>
-    <div v-else-if="splatLoading" class="splat-loading">Loading Gaussian splat scene…</div>
   </div>
 </template>
 
@@ -51,9 +50,9 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['scene-ready']);
+const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-040500';
+const BUILD_STAMP = '20260611-062500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -671,16 +670,64 @@ function markSceneReady() {
   if (sceneReadyEmitted) return;
   sceneReadyEmitted = true;
   splatLoading.value = false;
+  emitLoadingState(1, 'Scene ready');
   if (overlayRoot) overlayRoot.visible = props.splatEnabled;
   if (particleSystem) particleSystem.visible = props.splatEnabled;
   emit('scene-ready');
 }
 
 
+
+function emitLoadingState(progress, label, error = '') {
+  const nextProgress = MathUtils.clamp(progress, 0, 1);
+  if (Math.abs(nextProgress - lastLoadingProgress) < 0.003 && label === lastLoadingLabel && !error) return;
+  lastLoadingProgress = nextProgress;
+  lastLoadingLabel = label;
+  emit('scene-loading', { progress: nextProgress, label, error });
+}
+
+async function readResponseBytes(response, onProgress) {
+  const total = Number(response.headers.get('content-length') || 0);
+  if (!response.body) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    onProgress?.(1);
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  let fallbackProgress = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value?.length) continue;
+    chunks.push(value);
+    received += value.length;
+    if (total > 0) {
+      onProgress?.(received / total);
+    } else {
+      fallbackProgress = Math.min(0.96, fallbackProgress + 0.08);
+      onProgress?.(fallbackProgress);
+    }
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  });
+  onProgress?.(1);
+  return bytes;
+}
+
 function setSplatLoadError(error) {
   const detail = error?.message || String(error || 'Unknown error');
   splatError.value = 'Missing or invalid Gaussian SPZ. This zip does not include the binary splat; put the full file at public/splats/gaussians.spz before building so production has dist/splats/gaussians.spz. Gzip-wrapped legacy SPZ and raw SPZ v4 are supported.';
   console.error('Gaussian splat load failed:', detail);
+  emitLoadingState(1, 'Unable to load the Gaussian splat', splatError.value);
   splatLoading.value = false;
   if (splatRoot) splatRoot.visible = false;
   if (overlayRoot) overlayRoot.visible = false;
@@ -740,12 +787,15 @@ async function convertSpz4ToSparkLegacySpz(bytes) {
 }
 
 async function resolveSplatSource() {
+  emitLoadingState(0.08, 'Gathering the Gaussian honey…');
   const response = await fetch(SPLAT_URL, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Gaussian SPZ not found at /splats/gaussians.spz (${response.status}).`);
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const bytes = await readResponseBytes(response, (progress) => {
+    emitLoadingState(0.08 + (MathUtils.clamp(progress, 0, 1) * 0.58), 'Pouring the honey stream…');
+  });
   if (bytes.length < 4) {
     throw new Error('Gaussian SPZ is empty or truncated.');
   }
@@ -755,6 +805,7 @@ async function resolveSplatSource() {
   }
 
   if (hasGzipMagic(bytes)) {
+    emitLoadingState(0.74, 'Gaussian data secured');
     return {
       fileBytes: bytes,
       fileType: 'spz',
@@ -764,10 +815,12 @@ async function resolveSplatSource() {
 
   if (hasSpzMagic(bytes)) {
     const version = getRawSpzVersion(bytes);
+    emitLoadingState(0.78, version >= 4 ? 'Refining the splat bloom…' : 'Wrapping the honey payload…');
     const fileBytes = version >= 4
       ? await convertSpz4ToSparkLegacySpz(bytes)
       : await gzipBytes(bytes);
 
+    emitLoadingState(0.9, 'Gaussian bloom decoded');
     return {
       fileBytes,
       fileType: 'spz',
@@ -789,6 +842,7 @@ function updateSplatReveal(elapsed) {
   if (!splatRoot || !splatMesh || !splatMesh.isInitialized || splatRevealComplete) return;
 
   const raw = MathUtils.clamp((elapsed - splatRevealStart) / SPLAT_REVEAL_SECONDS, 0, 1);
+  emitLoadingState(0.93 + (raw * 0.07), raw < 0.96 ? 'Blooming the scene…' : 'Almost ready…');
   const reveal = MathUtils.smoothstep(raw, 0, 1);
   const shimmer = raw < 1 ? Math.sin(elapsed * 8.0) * 0.012 * (1 - reveal) : 0;
 
@@ -810,6 +864,7 @@ async function createSplatScene() {
 
   splatLoading.value = true;
   splatError.value = '';
+  emitLoadingState(0.03, 'Waking the hive…');
   splatRoot = new Group();
   splatRoot.name = 'gaussian-splat-root-at-origin';
   splatRoot.position.set(0, 0, 0);
@@ -838,6 +893,7 @@ async function createSplatScene() {
         if (particleSystem) particleSystem.visible = false;
         if (splatMesh) splatMesh.opacity = 0;
         splatLoading.value = true;
+        emitLoadingState(0.93, 'Shaping the reveal…');
       },
       onError: setSplatLoadError,
       onProgress: () => null

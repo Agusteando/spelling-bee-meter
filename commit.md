@@ -1,1 +1,1 @@
-Actualiza el logo inferior y elimina el año separado
+Añade un loader visual con logo y barra de miel para la carga del splat

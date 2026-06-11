@@ -5,7 +5,37 @@
         :slow-drift-enabled="panoramaDriftEnabled"
         :splat-enabled="splatEnabled"
         @scene-ready="handleSceneReady"
+        @scene-loading="handleSceneLoading"
       />
+
+      <transition name="loader-fade">
+        <div v-if="!sceneReady" class="scene-loader" aria-live="polite" aria-label="Loading Gaussian splat scene">
+          <div class="scene-loader-card" :class="{ 'is-error': Boolean(loaderError) }">
+            <img
+              class="scene-loader-logo"
+              :src="spellingBeeLogo"
+              alt="Annual Interscholastic Spelling Bee 2026"
+              draggable="false"
+            />
+
+            <div class="scene-loader-progress" role="progressbar" :aria-valuemin="0" :aria-valuemax="100" :aria-valuenow="loaderPercent">
+              <div class="scene-loader-progress-track">
+                <div class="scene-loader-progress-fill" :style="{ width: `${loaderPercent}%` }">
+                  <span class="scene-loader-progress-glow"></span>
+                </div>
+              </div>
+              <div class="scene-loader-progress-meta">
+                <span class="scene-loader-label">{{ loaderLabel }}</span>
+                <span class="scene-loader-value">{{ loaderPercent }}%</span>
+              </div>
+            </div>
+
+            <p class="scene-loader-caption" :class="{ 'is-error': Boolean(loaderError) }">
+              {{ loaderError || 'Preparing the splat reveal with honey-smooth precision…' }}
+            </p>
+          </div>
+        </div>
+      </transition>
 
       <div v-show="sceneReady" class="slot-overlay" aria-label="Spelling Bee draw meter">
         <img
@@ -109,7 +139,7 @@ import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-060500';
+const BUILD_STAMP = '20260611-062500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
@@ -123,6 +153,9 @@ const installPrompt = ref(null);
 const panoramaDriftEnabled = ref(true);
 const splatEnabled = ref(true);
 const sceneReady = ref(false);
+const loaderProgress = ref(4);
+const loaderLabel = ref('Warming the hive…');
+const loaderError = ref('');
 const hasSavedState = ref(Boolean(localStorage.getItem(STATE_KEY)));
 
 const qs = new URLSearchParams(window.location.search);
@@ -169,6 +202,8 @@ const spinInput = ref(parseFloat(localStorage.getItem(DUR_KEY)) || DEF_SEC);
 const remaining = computed(() => state.value.max - state.value.drawn.length);
 const historyText = computed(() => (state.value.drawn.length ? `Numbers drawn: ${state.value.drawn.join(', ')}` : ''));
 
+const loaderPercent = computed(() => Math.max(0, Math.min(100, Math.round(loaderProgress.value * 100))));
+
 const displayedValue = ref(state.value.drawn.at(-1) ?? 0);
 const meterLabel = computed(() => (rolling.value ? 'Drawing number' : `Current number ${pad(displayedValue.value)}`));
 let reelStepPx = 0;
@@ -193,7 +228,18 @@ function saveState() {
   hasSavedState.value = true;
 }
 
+function handleSceneLoading(payload = {}) {
+  if (typeof payload.progress === 'number' && Number.isFinite(payload.progress)) {
+    loaderProgress.value = Math.max(loaderProgress.value, Math.min(0.99, payload.progress));
+  }
+  if (payload.label) loaderLabel.value = payload.label;
+  if (payload.error) loaderError.value = payload.error;
+}
+
 async function handleSceneReady() {
+  loaderProgress.value = 1;
+  loaderLabel.value = 'Scene ready';
+  loaderError.value = '';
   sceneReady.value = true;
   await setupReels(displayedValue.value);
 }
