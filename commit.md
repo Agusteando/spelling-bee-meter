@@ -1,1 +1,1 @@
-Hace que las mariposas roten según su vuelo realista
+Suaviza el vuelo de abejas y evita giros bruscos de sprites

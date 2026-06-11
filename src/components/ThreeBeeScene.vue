@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-111500';
+const BUILD_STAMP = '20260611-114500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -139,6 +139,7 @@ const cameraPathTargetPosition = new Vector3();
 const cameraLookTarget = new Vector3();
 const cameraDirection = new Vector3();
 const beeVector = new Vector3();
+const beeFollowVector = new Vector3();
 const butterflyVelocity = new Vector3();
 let cameraPathYaw = fixedYaw;
 let cameraPathPitch = fixedPitch;
@@ -585,7 +586,7 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     route,
     phase,
     baseScale: { x: scale, y: scale },
-    speed,
+    speed: speed * 0.62,
     collectRadius,
     travelLift,
     curve,
@@ -593,7 +594,15 @@ function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadi
     currentTexture: beeRightTexture,
     lastPosition: startPatch.clone(),
     samplePosition: startPatch.clone(),
-    lastDirectionX: 1
+    targetPosition: startPatch.clone(),
+    smoothedVelocity: new Vector3(),
+    directionScore: 1,
+    lastDirectionX: 1,
+    directionCooldownUntil: 0,
+    bank: 0,
+    tilt: 0,
+    hoverEnergy: 1,
+    dartEnergy: 0.12
   });
 }
 
@@ -748,70 +757,135 @@ function sampleBeeSegment(actor, loopProgress, target) {
   const normalX = -beeVector.z / flatLength;
   const normalZ = beeVector.x / flatLength;
 
-  const collectPortion = 0.3;
-  const transitEnd = 0.8;
+  const collectPortion = 0.44;
+  const transitEnd = 0.78;
+  const rhythm = Math.sin((loopProgress * 22.0) + actor.phase * Math.PI * 12);
+  const driftPhase = actor.phase * Math.PI * 8;
 
   if (local < collectPortion) {
     const u = local / collectPortion;
-    const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 4;
+    const hoverEase = 1 - Math.abs(0.5 - u) * 2;
+    const angle = (u * Math.PI * 2.35) + driftPhase;
+    const radiusPulse = 0.72 + Math.sin(u * Math.PI * 4 + driftPhase) * 0.16;
+    actor.hoverEnergy = 0.82 + hoverEase * 0.18;
+    actor.dartEnergy = 0.1 + Math.max(0, rhythm) * 0.08;
+
     target.copy(from);
-    target.x += Math.cos(angle) * actor.collectRadius;
-    target.z += Math.sin(angle * 1.06) * actor.collectRadius * 0.7;
-    target.y += Math.sin(angle * 2.0) * actor.bob;
+    target.x += Math.cos(angle) * actor.collectRadius * radiusPulse;
+    target.z += Math.sin(angle * 1.08) * actor.collectRadius * 0.52 * radiusPulse;
+    target.y += Math.sin(angle * 2.4) * actor.bob * 0.55;
+    target.y += Math.sin((u + actor.phase) * Math.PI * 10) * actor.bob * 0.16;
     return target;
   }
 
   if (local < transitEnd) {
     const u = (local - collectPortion) / (transitEnd - collectPortion);
-    const eased = MathUtils.smoothstep(u, 0, 1);
+    const eased = 0.5 - Math.cos(u * Math.PI) * 0.5;
+    const dart = Math.sin(u * Math.PI);
+    const microWeave = Math.sin((u * Math.PI * 3.2) + driftPhase) * (1 - Math.abs(0.5 - u));
+    actor.hoverEnergy = Math.max(0, 1 - dart * 1.55);
+    actor.dartEnergy = 0.28 + dart * 0.72;
+
     target.copy(from).lerp(to, eased);
-    target.x += Math.sin(u * Math.PI) * actor.curve * normalX;
-    target.z += Math.sin(u * Math.PI) * actor.curve * normalZ;
-    target.y += Math.sin(u * Math.PI) * actor.travelLift;
+    target.x += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.025) * normalX;
+    target.z += (Math.sin(u * Math.PI) * actor.curve + microWeave * 0.025) * normalZ;
+    target.y += Math.sin(u * Math.PI) * actor.travelLift * 0.78;
+    target.y += Math.sin(u * Math.PI * 2 + driftPhase) * actor.bob * 0.18;
     return target;
   }
 
   const u = (local - transitEnd) / (1 - transitEnd);
-  const angle = (u * Math.PI * 2) + actor.phase * Math.PI * 3 + Math.PI * 0.4;
+  const angle = (u * Math.PI * 2.15) + driftPhase + Math.PI * 0.4;
+  const settle = MathUtils.smoothstep(u, 0, 1);
+  actor.hoverEnergy = 0.68 + settle * 0.28;
+  actor.dartEnergy = 0.16 + (1 - settle) * 0.22;
+
   target.copy(to);
-  target.x += Math.cos(angle) * actor.collectRadius * 0.86;
-  target.z += Math.sin(angle * 1.1) * actor.collectRadius * 0.64;
-  target.y += Math.cos(angle * 2.0) * actor.bob * 0.9;
+  target.x += Math.cos(angle) * actor.collectRadius * 0.66;
+  target.z += Math.sin(angle * 1.12) * actor.collectRadius * 0.46;
+  target.y += Math.cos(angle * 2.15) * actor.bob * 0.48;
   return target;
 }
 
 function updateBees(loopTime) {
   if (!beeActors.length) return;
   const loopProgress = loopTime / SCENE_LOOP_SECONDS;
+  const cameraRightX = camera?.matrixWorld?.elements?.[0] ?? 1;
+  const cameraRightY = camera?.matrixWorld?.elements?.[1] ?? 0;
+  const cameraRightZ = camera?.matrixWorld?.elements?.[2] ?? 0;
+  const cameraUpX = camera?.matrixWorld?.elements?.[4] ?? 0;
+  const cameraUpY = camera?.matrixWorld?.elements?.[5] ?? 1;
+  const cameraUpZ = camera?.matrixWorld?.elements?.[6] ?? 0;
 
   beeActors.forEach((actor) => {
-    const position = sampleBeeSegment(actor, loopProgress, actor.samplePosition);
-    const velocityX = position.x - actor.lastPosition.x;
-    const velocityY = position.y - actor.lastPosition.y;
-    const velocityZ = position.z - actor.lastPosition.z;
-    const cameraRightX = camera?.matrixWorld?.elements?.[0] ?? 1;
-    const cameraRightY = camera?.matrixWorld?.elements?.[1] ?? 0;
-    const cameraRightZ = camera?.matrixWorld?.elements?.[2] ?? 0;
-    const screenVelocityX = (velocityX * cameraRightX) + (velocityY * cameraRightY) + (velocityZ * cameraRightZ);
-    const directionX = Math.abs(screenVelocityX) > 0.0005 ? Math.sign(screenVelocityX) : actor.lastDirectionX;
+    const target = sampleBeeSegment(actor, loopProgress, actor.targetPosition);
+    const followAlpha = 0.038 + actor.dartEnergy * 0.035;
+    const previousPosition = actor.sprite.position.clone();
 
-    actor.sprite.position.copy(position);
+    beeFollowVector.subVectors(target, actor.sprite.position);
+    actor.sprite.position.addScaledVector(beeFollowVector, followAlpha);
 
-    const wingPulse = 1 + Math.sin(loopTime * 16 * actor.speed + actor.phase * Math.PI * 4) * 0.12;
-    const bodySqueeze = 1 + Math.cos(loopTime * 12 * actor.speed + actor.phase * Math.PI * 3) * 0.08;
-    actor.sprite.scale.set(actor.baseScale.x * wingPulse, actor.baseScale.y * bodySqueeze, 1);
-    actor.sprite.material.rotation = MathUtils.clamp(velocityY * 3.2, -0.22, 0.22);
+    const jitter = 0.0018 + actor.hoverEnergy * 0.0018;
+    actor.sprite.position.x += Math.sin(loopTime * 6.3 + actor.phase * 17) * jitter;
+    actor.sprite.position.y += Math.sin(loopTime * 8.2 + actor.phase * 13) * jitter * 0.72;
 
-    const targetTexture = directionX >= 0 ? beeRightTexture : beeLeftTexture;
+    actor.smoothedVelocity.subVectors(actor.sprite.position, previousPosition);
+    actor.smoothedVelocity.multiplyScalar(0.58).addScaledVector(
+      beeFollowVector,
+      0.42 * followAlpha
+    );
+
+    const screenVelocityX = (actor.smoothedVelocity.x * cameraRightX)
+      + (actor.smoothedVelocity.y * cameraRightY)
+      + (actor.smoothedVelocity.z * cameraRightZ);
+    const screenVelocityY = (actor.smoothedVelocity.x * cameraUpX)
+      + (actor.smoothedVelocity.y * cameraUpY)
+      + (actor.smoothedVelocity.z * cameraUpZ);
+
+    const flipThreshold = 0.00042;
+    if (Math.abs(screenVelocityX) > flipThreshold) {
+      const candidate = Math.sign(screenVelocityX);
+      actor.directionScore = MathUtils.lerp(actor.directionScore, candidate, 0.09 + actor.dartEnergy * 0.035);
+    } else {
+      actor.directionScore = MathUtils.lerp(actor.directionScore, actor.lastDirectionX, 0.035);
+    }
+
+    const wantsDirection = actor.directionScore > 0.72 ? 1 : actor.directionScore < -0.72 ? -1 : actor.lastDirectionX;
+    const mayFlip = loopTime > actor.directionCooldownUntil
+      && wantsDirection !== actor.lastDirectionX
+      && (actor.hoverEnergy > 0.42 || Math.abs(actor.directionScore) > 0.9);
+
+    if (mayFlip) {
+      actor.lastDirectionX = wantsDirection;
+      actor.directionCooldownUntil = loopTime + 0.75 + actor.hoverEnergy * 0.32;
+    }
+
+    const targetTexture = actor.lastDirectionX >= 0 ? beeRightTexture : beeLeftTexture;
     if (actor.currentTexture !== targetTexture) {
       actor.material.map = targetTexture;
       actor.material.needsUpdate = true;
       actor.currentTexture = targetTexture;
     }
 
-    actor.material.opacity = 0.93 + Math.sin(loopTime * 5.0 + actor.phase * Math.PI * 3) * 0.05;
-    actor.lastPosition.copy(position);
-    actor.lastDirectionX = directionX || actor.lastDirectionX;
+    const wingTempo = 18.5 + actor.dartEnergy * 7.0;
+    const wingPulse = 1 + Math.sin(loopTime * wingTempo + actor.phase * Math.PI * 4) * (0.075 + actor.dartEnergy * 0.035);
+    const bodySqueeze = 1 + Math.cos(loopTime * (13.5 + actor.dartEnergy * 5.0) + actor.phase * Math.PI * 3) * 0.055;
+    const hoverPulse = 1 + Math.sin(loopTime * 3.1 + actor.phase * 9) * actor.hoverEnergy * 0.035;
+    actor.sprite.scale.set(
+      actor.baseScale.x * wingPulse * hoverPulse,
+      actor.baseScale.y * bodySqueeze,
+      1
+    );
+
+    const targetBank = MathUtils.clamp(-screenVelocityX * 28, -0.28, 0.28);
+    const targetTilt = MathUtils.clamp(screenVelocityY * 8 + targetBank * 0.3, -0.22, 0.22);
+    actor.bank = MathUtils.lerp(actor.bank, targetBank, 0.11);
+    actor.tilt = MathUtils.lerp(actor.tilt, targetTilt, 0.1);
+    actor.sprite.material.rotation = actor.tilt + actor.bank + Math.sin(loopTime * 4.2 + actor.phase * 11) * actor.hoverEnergy * 0.025;
+
+    actor.material.opacity = 0.91 + Math.sin(loopTime * 4.2 + actor.phase * Math.PI * 3) * 0.035;
+    actor.lastPosition.copy(actor.sprite.position);
+    actor.samplePosition.copy(target);
   });
 }
 

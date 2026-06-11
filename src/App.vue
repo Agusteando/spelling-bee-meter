@@ -150,7 +150,7 @@ import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 import { createSoundboard } from './audio/soundboard.js';
 
-const BUILD_STAMP = '20260611-111500';
+const BUILD_STAMP = '20260611-114500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
