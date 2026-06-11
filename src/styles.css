@@ -299,6 +299,32 @@ input {
   100% { background-position: 100% 50%; }
 }
 
+
+.hero-year {
+  position: absolute;
+  left: clamp(0.95rem, 3vw, 2.4rem);
+  bottom: calc(var(--safe-bottom) + clamp(0.75rem, 2.8dvh, 2rem));
+  z-index: 3;
+  margin: 0;
+  font-family: 'Fredoka', 'Montserrat', system-ui, sans-serif;
+  font-size: clamp(1.55rem, 3.8vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  color: #8e6230;
+  background: linear-gradient(180deg, #cda06a 0%, #8c5d2c 42%, #6f471f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow:
+    0 0.045em 0 rgba(57, 34, 14, 0.9),
+    0 0.12em 0.34em rgba(95, 62, 28, 0.28),
+    0 0 0.12em rgba(245, 208, 148, 0.16);
+  filter: drop-shadow(0 0.3rem 0.75rem rgba(95, 62, 28, 0.18));
+  pointer-events: none;
+  user-select: none;
+}
+
 .controls-panel {
   display: grid;
   gap: 1.4rem;
@@ -654,6 +680,12 @@ input {
 }
 
 @media (max-width: 720px) {
+  .hero-year {
+    left: clamp(0.8rem, 4vw, 1.3rem);
+    bottom: calc(var(--safe-bottom) + clamp(0.7rem, 2dvh, 1.15rem));
+    font-size: clamp(1.3rem, 5vw, 2.15rem);
+  }
+
   .slot-overlay {
     width: min(96vw, 100%);
   }

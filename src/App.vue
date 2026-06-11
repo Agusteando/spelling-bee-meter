@@ -56,6 +56,8 @@
       </div>
 
       <div v-show="sceneReady" id="gradient" class="gradient-bar" :class="{ animate: rolling }"></div>
+
+      <div v-show="sceneReady" class="hero-year" aria-label="Current year">{{ currentYear }}</div>
     </section>
 
     <section id="controls" class="controls-panel">
@@ -108,13 +110,14 @@ import ThreeBeeScene from './components/ThreeBeeScene.vue';
 import iedisLogo from './assets/branding/iedis-logo.png';
 import spellingBeeLogo from './assets/branding/spelling-bee-logo.png';
 
-const BUILD_STAMP = '20260611-054000';
+const BUILD_STAMP = '20260611-055500';
 const STATE_KEY = 'bee-slot-state';
 const DUR_KEY = 'bee-slot-dur';
 const DEF_MAX = 100;
 const DEF_SEC = 5;
 const REEL_LOOPS = 7;
 const REEL_VISIBLE_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
+const currentYear = new Date().getFullYear();
 
 const reelsRoot = ref(null);
 const rolling = ref(false);

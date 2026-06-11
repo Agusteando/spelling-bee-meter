@@ -1,1 +1,1 @@
-Conserva la proporción original de los logos
+Actualiza el logo del evento y añade el año actual en escena
