@@ -58,7 +58,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-130500';
+const BUILD_STAMP = '20260611-131500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -562,6 +562,13 @@ function loadBeeTexture(url) {
   const texture = registerTexture(loader.load(url, (loaded) => configureTexture(loaded)));
   texture.colorSpace = SRGBColorSpace;
   return texture;
+}
+
+function ensureBeeGeometry() {
+  if (beePlaneGeometry) return beePlaneGeometry;
+  beePlaneGeometry = registerDisposable(new PlaneGeometry(1, 1.18, 1, 1));
+  beePlaneGeometry.translate(0, 0.08, 0);
+  return beePlaneGeometry;
 }
 
 function createBeeActor({ route, phase = 0, scale = 0.05, speed = 1, collectRadius = 0.072, travelLift = 0.08, curve = 0.09, bob = 0.018 }) {

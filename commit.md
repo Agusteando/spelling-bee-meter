@@ -1,1 +1,1 @@
-Sustituye abejas Sprite por planos orientados a cámara en yaw
+Agrega helper faltante para geometría de abejas en plano
