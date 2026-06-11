@@ -52,7 +52,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-062500';
+const BUILD_STAMP = '20260611-064000';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -99,9 +99,9 @@ const fixedYaw = 0;
 const fixedPitch = -0.012;
 const CAMERA_HOME = new Vector3(0.0, -0.045, 1.82);
 const CAMERA_SIDE = new Vector3(1.0, 0.0, 0.0);
-const SCENE_LOOP_SECONDS = 31;
+const SCENE_LOOP_SECONDS = 33.8;
 const CAMERA_NEAR_Z = CAMERA_HOME.z;
-const CAMERA_FAR_Z = 10.45;
+const CAMERA_FAR_Z = 10.48;
 const CAMERA_PATH_CURVE = new CatmullRomCurve3([
   CAMERA_HOME.clone(),
   new Vector3(0.0, -0.052, 1.98),
@@ -109,13 +109,18 @@ const CAMERA_PATH_CURVE = new CatmullRomCurve3([
   new Vector3(0.32, -0.365, 3.62),
   new Vector3(0.84, -0.34, 5.15),
   new Vector3(1.18, -0.06, 6.92),
-  new Vector3(0.72, 0.42, 8.62),
-  new Vector3(-0.18, 0.68, 10.45),
-  new Vector3(-0.72, 0.36, 9.22),
-  new Vector3(-0.68, -0.05, 6.82),
+  new Vector3(0.78, 0.38, 8.42),
+  new Vector3(0.32, 0.58, 9.62),
+  new Vector3(-0.04, 0.68, 10.28),
+  new Vector3(-0.26, 0.67, 10.48),
+  new Vector3(-0.44, 0.6, 10.34),
+  new Vector3(-0.58, 0.46, 9.92),
+  new Vector3(-0.66, 0.27, 9.18),
+  new Vector3(-0.65, 0.04, 8.08),
+  new Vector3(-0.5, -0.14, 6.72),
   new Vector3(-0.22, -0.285, 4.76),
   new Vector3(0.12, -0.185, 3.12)
-], true, 'catmullrom', 0.26);
+], true, 'catmullrom', 0.18);
 const clock = new Clock();
 const loader = new TextureLoader();
 const cleanup = [];
@@ -970,14 +975,16 @@ function sampleGaussianCameraTrajectory(progress) {
   const neutralIntro = 1 - MathUtils.smoothstep(p, 0.008, 0.035);
   const antViewRise = MathUtils.smoothstep(p, 0.045, 0.11) * (1 - MathUtils.smoothstep(p, 0.36, 0.52));
   const lowSweep = MathUtils.smoothstep(p, 0.12, 0.22) * (1 - MathUtils.smoothstep(p, 0.42, 0.58));
-  const highReveal = MathUtils.smoothstep(p, 0.52, 0.64) * (1 - MathUtils.smoothstep(p, 0.73, 0.83));
-  const returnAntView = MathUtils.smoothstep(p, 0.79, 0.88) * (1 - MathUtils.smoothstep(p, 0.94, 0.995));
+  const highReveal = MathUtils.smoothstep(p, 0.5, 0.64) * (1 - MathUtils.smoothstep(p, 0.76, 0.9));
+  const retreatFeather = MathUtils.smoothstep(p, 0.64, 0.77) * (1 - MathUtils.smoothstep(p, 0.88, 0.98));
+  const returnAntView = MathUtils.smoothstep(p, 0.83, 0.92) * (1 - MathUtils.smoothstep(p, 0.965, 0.995));
   const sweepGuard = MathUtils.smoothstep(p, 0.075, 0.18);
-  const returnGuard = 1 - MathUtils.smoothstep(p, 0.94, 0.995);
-  const sideLook = -cameraPathPosition.x * 0.19;
-  const deliberateSweep = Math.sin(phase - 0.48) * 0.074 * Math.sin(p * Math.PI) * sweepGuard * returnGuard;
+  const returnGuard = 1 - MathUtils.smoothstep(p, 0.955, 0.995);
+  const retreatCalm = 1 - retreatFeather * 0.42;
+  const sideLook = -cameraPathPosition.x * 0.17 * retreatCalm;
+  const deliberateSweep = Math.sin(phase - 0.48) * 0.066 * Math.sin(p * Math.PI) * sweepGuard * returnGuard * retreatCalm;
   const antCounterLook = (antViewRise + lowSweep * 0.5) * -0.018;
-  const topCounterLook = highReveal * 0.025;
+  const topCounterLook = highReveal * 0.021 - retreatFeather * 0.01;
 
   cameraPathYaw = MathUtils.clamp(
     (sideLook + deliberateSweep + antCounterLook + topCounterLook) * (1 - neutralIntro),
@@ -988,16 +995,18 @@ function sampleGaussianCameraTrajectory(progress) {
     MathUtils.lerp(0.004, 0.095, depthProgress)
       + antViewRise * 0.104
       + lowSweep * 0.044
-      + highReveal * 0.032
-      + returnAntView * 0.038
-      + Math.sin(phase * 0.8 + 0.28) * 0.008 * sweepGuard * returnGuard,
+      + highReveal * 0.028
+      + retreatFeather * 0.018
+      + returnAntView * 0.03
+      + Math.sin(phase * 0.8 + 0.28) * 0.0055 * sweepGuard * returnGuard * retreatCalm,
     -0.014,
     0.18
   );
-  cameraPathFovOffset = MathUtils.lerp(0.42, -1.18, depthProgress)
+  cameraPathFovOffset = MathUtils.lerp(0.42, -1.08, depthProgress)
     - antViewRise * 0.38
     - lowSweep * 0.18
-    + highReveal * 0.2;
+    + highReveal * 0.14
+    + retreatFeather * 0.06;
 }
 
 function fixedViewDirection(baseYaw = fixedYaw, basePitch = fixedPitch) {
