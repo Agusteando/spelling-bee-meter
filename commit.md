@@ -1,1 +1,1 @@
-Usa el ala cargada para mariposas con espejo y tintes por color
+Actualiza el ala de mariposa y reduce ligeramente su escala

@@ -56,7 +56,7 @@ const props = defineProps({
 
 const emit = defineEmits(['scene-ready', 'scene-loading']);
 
-const BUILD_STAMP = '20260611-083500';
+const BUILD_STAMP = '20260611-085500';
 const SPLAT_URL = `/splats/gaussians.spz?v=${BUILD_STAMP}`;
 const SKY_COLOR = '#fbe2a4';
 const SPLAT_REVEAL_SECONDS = 4.8;
@@ -593,7 +593,7 @@ function createFlyingActors() {
   butterflyRoutes.forEach((route, index) => {
     createButterflyActor({
       route,
-      scale: 0.07 + (index % 3) * 0.006,
+      scale: 0.061 + (index % 3) * 0.005,
       paletteIndex: index % BUTTERFLY_PALETTE.length,
       phase: (index * 0.083) % 1,
       loopDuration: 24 + (index % 5) * 4.5,
